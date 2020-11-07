@@ -1,0 +1,13 @@
+$RTR+SMS=R,-1
+$RTR+SMS=D,2
+
+if : STR has '$','+','='
+    1. split string with '='. 
+        store those in tStr[0],[1].
+        STR.replace('=',0)
+    2. find '+' from tStr[0] and store the addrtess
+        in CMD.typ. increament CMD.type by 1
+    3. split the string tStr[1] with delemeter ','
+        store one by one in CMD.arg[].
+    4. Count total indexes stored in CMD.arg[] and 
+        store in CMD.arg_cnt

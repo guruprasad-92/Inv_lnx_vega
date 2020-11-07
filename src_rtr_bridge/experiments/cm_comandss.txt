@@ -1,0 +1,227 @@
+Invalid command for info service.
+root@Invendis:~/vega# cm 
+SMS usage
+=========
+
+To monitor incoming SMS:
+	cm sms monitor
+
+To send a text SMS:
+	cm sms send <number> <content>
+
+To send a binary SMS:
+	cm sms sendbin <number> <file> <optional max sms>
+
+To list all stored SMS:
+	cm sms list
+
+To get specific stored SMS:
+	cm sms get <idx>
+
+To clear stored SMS:
+	cm sms clear
+
+To count stored SMS:
+	cm sms count
+
+Options:
+	<number>: Destination number
+	<content>: Text is encoded in ASCII format (ISO8859-15) and characters have to exist in the GSM 23.038 7 bit alphabet
+	<file>: File path OR - for standard input (stdin)
+	<optional max sms>: (Optional) Limit for the number of SMS the file is split in
+Radio usage
+===========
+
+To get modem status:
+	cm radio
+	cm radio status
+
+To enable/disable radio:
+	cm radio <on/off>
+
+To set radio access technologies prefererences
+	cm radio rat <[CDMA] [GSM] [UMTS] [LTE] [TDSCDMA]>
+
+To get radio access technologies prefererences
+	cm radio getRAT 
+
+To resume automatic RAT selection.
+	cm radio rat AUTO
+
+Data usage
+==========
+
+To get info on profile in use:
+	cm data
+	cm data info
+
+To set profile in use:
+	cm data profile <index>
+
+To set apn for profile in use:
+	cm data apn <apn>
+
+To set pdp type for profile in use:
+	cm data pdp <pdp>
+
+To set authentication for profile in use:
+	cm data auth <none/pap/chap> <username> <password>
+
+To start a data connection:
+	cm data connect <optional timeout (secs)>
+
+To stop a data connection:
+	cm data disconnect
+
+To monitor the data connection:
+	cm data watch
+
+To start a data connection, please ensure that your profile has been configured correctly.
+Also ensure your modem is registered to the network. To verify, use 'cm radio' and check 'Status'.
+
+SIM usage
+=========
+
+To get sim status:
+	cm sim
+	cm sim status
+
+To get sim information:
+	cm sim info
+
+To get the SIM IMSI (International Mobile Subscriber Identity):
+	cm sim imsi
+
+To get the SIM ICCID (integrated circuit card identifier):
+	cm sim iccid
+
+To get the SIM EID (identifier for the embedded Universal Integrated Circuit Card):
+	cm sim eid
+
+To get the sim phone number:
+	cm sim number
+
+To enter pin code:
+	cm sim enterpin <pin>
+
+To change pin code:
+	cm sim changepin <oldpin> <newpin>
+
+To lock sim:
+	cm sim lock <pin>
+
+To unlock sim:
+	cm sim unlock <pin>
+
+To unblock sim:
+	cm sim unblock <puk> <newpin>
+
+To store pin:
+	cm sim storepin <pin>
+
+To select SIM:
+	cm sim select <EMBEDDED | EXTERNAL_SLOT_1 | EXTERNAL_SLOT_2 | REMOTE>
+
+To use auto SIM selection:
+	cm sim mode <AUTO | MANUAL> 
+
+Enter PIN: Enters the PIN code that is required before any Mobile equipment functionality can be used.
+Change PIN: Change the PIN code of the SIM card.
+Lock: Enable security of the SIM card, it will request for a PIN code upon insertion.
+Unlock: Disable security of the SIM card, it won't request a PIN code upon insertion (unsafe).
+Unblock: Unblocks the SIM card. The SIM card is blocked after X unsuccessful attempts to enter the PIN.
+
+Whether security is enabled or not, the SIM card has a PIN code that must be entered for every operations.
+Only ways to change this PIN code are through 'changepin' and 'unblock' operations.
+
+Info usage
+==========
+
+To print all known info:
+	cm info
+	cm info all
+
+To print the device model:
+	cm info device
+
+To print the IMEI:
+	cm info imei
+
+To print the IMEISV:
+	cm info imeiSv
+
+To print the serial number:
+	cm info fsn
+
+To print the firmware version:
+	cm info firmware
+
+To print the bootloader version:
+	cm info bootloader
+
+To print the PRI part and the PRI revision:
+	cm info pri
+
+To print the SKU:
+	cm info sku
+
+To print the last reset cause:
+	cm info reset
+
+To print the number of resets:
+	cm info resetsCount
+
+Temperature usage 
+==========
+
+To print all known temperatures:
+	cm temp
+	cm temp all
+
+To print all thresholds:(applicable for AR755x, AR8652, and WP8548 platforms only)
+	cm temp thresholds
+
+To print the Power Amplifier temperature:
+	cm temp pa
+
+To print the Power Controller temperature:
+	cm temp pc
+
+ADC usage
+==========
+
+To print known adc channels:
+	cm adc read channel
+		where "channel" is one of the ADC name
+IPS usage
+==========
+
+To read and print information about the power supply (voltage, power source, battery level):
+	cm ips
+	cm ips read
+
+To read and print the input voltage thresholds:
+	cm ips thresholds
+RTC usage
+==========
+
+To read the RTC time:
+	cm rtc read
+
+To set the RTC time:
+	cm rtc set "25 Dec 2015 12:30:45"
+time format:
+- day of the month (leading zeros are permitted)"
+- month (either the abbreviated or the full name)"
+- year with century"
+- hour (leading zeros are permitted)"
+- minute (leading zeros are permitted)"
+- seconds (leading zeros are permitted)"
+mdmCfg usage
+==========
+
+To store the modem current configurations :
+	cm mdmCfg save
+To restore the modem saved configurations :
+	cm mdmCfg restore
+root@Invendis:~/vega# 
