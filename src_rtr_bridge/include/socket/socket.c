@@ -466,8 +466,8 @@ void *th_port2(void *arg)
     int t_flg=0;
 
     uint32_t sz_pkFun = 20, rt_pkFun = 0;
-    Pack_func_ Pack_func[20];
-    uint32_t arr_pkFun[20];
+    static Pack_func_ Pack_func[SZ_PAK_FUN] = {0};
+    static uint32_t arr_pkFun[SZ_PAK_FUN] = {0};
     // char st_str[10] = {"\n\rPeriodic status : \n\r\0"};
     
     rt_pkFun = pack_func_init(Pack_func,arr_pkFun);
@@ -476,14 +476,14 @@ void *th_port2(void *arg)
     dbg_print(Bold_Yellow,"%s : waiting for sem_mdm ...\n",th_arg->th_info);
     sem_wait(th_arg->th_sem);
     rt_pkt = pkt_btup(buf_btp,1000,Pack_func,rt_pkFun);
-    // if(rt_pkt == -1) // Success / error
-    // {
-    //     btup_typ = PACK_TYP_BTUP2;
-    // }
-    // else
-    // {
-    //     btup_typ = PACK_TYP_BTUP;
-    // }
+    if(rt_pkt == -1) // Success / error
+    {
+        btup_typ = PACK_TYP_BTUP2;
+    }
+    else
+    {
+        btup_typ = PACK_TYP_BTUP;
+    }
     
     sem_post(th_arg->th_sem);
     dbg_print(Bold_Yellow,"%s : sem_mdm has released.\n",th_arg->th_info);
@@ -512,8 +512,7 @@ void *th_port2(void *arg)
             sprintf(th_arg->th_buf,"\n\rPeriodic status : \n\r");
             // printf("\nIn while(1)\n");
             get_time(th_arg->th_buf+(strlen(th_arg->th_buf)));
-
-            if(btup_typ == PACK_TYP_PRD)
+            if(btup_typ == (PACK_TYP_PRD))
             {
                 //------ periodic payload --------
                 dbg_print(Bold_Yellow,"%s : waiting for sem_mdm ...\n",th_arg->th_info);
@@ -528,7 +527,7 @@ void *th_port2(void *arg)
             else
             {
                 // send the bootup packet every time
-                if(btup_typ == PACK_TYP_BTUP2)
+                if(btup_typ == (PACK_TYP_BTUP2)) 
                 {
                     dbg_print(Bold_Yellow,"%s : waiting for sem_mdm ...\n",th_arg->th_info);
                     sem_wait(th_arg->th_sem);
@@ -540,11 +539,11 @@ void *th_port2(void *arg)
                     dbg_print(Bold_Yellow,"%s : sem_mdm has released.\n",th_arg->th_info);
                     if(rt_pkt == -1)
                     {
-                        btup_typ = PACK_TYP_BTUP2;
+                        btup_typ = (PACK_TYP_BTUP2);
                     }
                     else
                     {
-                        btup_typ = PACK_TYP_PRD;
+                        btup_typ = (PACK_TYP_PRD);
                     }               
                 }                
 
@@ -610,7 +609,7 @@ void *th_port2(void *arg)
                     btup_typ = PACK_TYP_BTUP2; // Creation of bootup packet again.
                     memset(buf_rcv,0,strlen(buf_rcv));
                 }
-                sleep(30);
+                sleep(PLD_PRD_INT);
             }
         }
     }

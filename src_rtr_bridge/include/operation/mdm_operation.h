@@ -13,6 +13,7 @@
 #define RTR_SIM_CCID    "AT+CCID\r\0"
 #define RTR_SIM_IMSI    "AT+CIMI\r\0"
 #define RTR_GET_RAT     "AT!GETRAT?\r\0"
+#define RTR_TTY_SET     "ATE1\r\0"
 
 #define RTR_SIM_SWCH_TM     240
 
@@ -70,4 +71,5 @@ int rsp_popen(const char *cmd, char *rsp, \
 int fd_ctrl(int fd, int ctrl, Termios *tty);
 int get_fmw_ver(int fd, FMW_VER_ *ver);
 int mdm_get_sltSts(void);
+int mdm_get_rstIntrvl(char *rst_intrvl,uint32_t sz_rst_intrvl);
 #endif

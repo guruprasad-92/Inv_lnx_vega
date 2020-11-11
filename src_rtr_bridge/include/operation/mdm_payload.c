@@ -37,7 +37,7 @@ int pack_mdm_sn(int fd, char *str, uint32_t sz, uint32_t typ)
         return -1;
     }
     memset(str,0,25);
-    if((typ == 0) || (typ == 1))
+    if( ((typ&3) == 0) || ((typ&3) == 1) )
     {
         
         //Use the function for both types
@@ -284,7 +284,7 @@ int pack_mdm_imsi(int fd, char *str, uint32_t sz, uint32_t typ)
     int cnt = 0;
     memset(str,0,sz);
     char tmp[20] = {0};
-    printf("typ = 0x%x\n",typ);
+    // printf("typ = 0x%x\n",typ);
     if(((typ&3)==0)||((typ&3)==1)||((typ&3)==3))
     {
         if(sz < 20)
@@ -295,12 +295,16 @@ int pack_mdm_imsi(int fd, char *str, uint32_t sz, uint32_t typ)
         do
         {
             ret = mdm_get_imsi(fd,tmp);
-            msleep(200);
+            if(ret!=0)
+            {
+                msleep(200);
+                memset(tmp,0,20);
+            }
         }
         while( (ret!=0) && (cnt++ < 3) );
-        printf("typ=0x%x",typ);
-        printf("ret = %d\n",ret);
-        if(ret == 0 && ( ((typ&4)>>3)==1) )
+        // printf("typ=0x%x",typ);
+        // printf("ret = %d\n",ret);
+        if(ret == 0 && ( ((typ&4)>>2)==1) )
         {
             sprintf(str,"IMSI_%d : %s\n",read_active_sim(),tmp);
             ret = strlen(str);
@@ -326,20 +330,29 @@ int pack_mdm_imsi(int fd, char *str, uint32_t sz, uint32_t typ)
  * ******************************************/
 int pack_mdm_ccid(int fd, char *str, uint32_t sz, uint32_t typ)
 {
-    int ret = 0;
+    int ret = 0, cnt=0;;
     char tmp[25] = {0};
     memset(str,0,sz);
-    printf("typ = 0x%x\n",typ);
-    if(((typ&3)==0) || ((typ&3)==1) || ((typ&3)==3))
+    // printf("typ = 0x%x\n",typ);
+    if(((typ&3)==PACK_TYP_ALL) || ((typ&3)==((PACK_TYP_BTUP)&3)) \
+             || ((typ&PACK_TYP_SIM&3)==3))
     {
         if(sz < 25)
         {
             return -1;
         }
         memset(str,0,sz);
-        ret = mdm_get_ccid(fd,tmp);
-        printf("ret = %d\n",ret);
-        if(ret == 0 && ( ((typ&4)>>3)==1) )
+        do
+        {
+            ret = mdm_get_ccid(fd,tmp);
+            if(ret!=0)
+            {
+                memset(tmp,0,25);
+                msleep(100);
+            }
+        }while( (ret!=0) && (cnt++ < 3) );
+
+        if(ret == 0 && ( ((typ&4)>>2)==1) )
         {
             sprintf(str,"CCID_%d : %s\n",read_active_sim(),tmp);
             ret = strlen(str);
@@ -365,10 +378,10 @@ int pack_mdm_ccid(int fd, char *str, uint32_t sz, uint32_t typ)
  * ******************************************/
 int pack_mdm_spn(int fd, char *str, uint32_t sz, uint32_t typ)
 {
-    int ret = 0;
-    char tmp[10] = {0};
+    int ret = 0, cnt=0;
+    char tmp[30] = {0};
     memset(str,0,sz);
-    printf("typ = 0x%x\n",typ);
+    // printf("typ = 0x%x\n",typ);
     if(((typ&3)==0) || ((typ&3)==1) || ((typ&3)==3))
     {
         if(sz < 20)
@@ -376,9 +389,19 @@ int pack_mdm_spn(int fd, char *str, uint32_t sz, uint32_t typ)
             return -1;
         }
         memset(str,0,sz);
-        ret = mdm_get_spn(fd,tmp);
-        printf("ret = %d\n",ret);
-        if(ret == 0 && ( ((typ&4)>>3)==1) )
+        do
+        {
+            ret = mdm_get_spn(fd,tmp);
+            if(ret != 0)
+            {
+                memset(tmp,0,30);
+                msleep(100);
+            }
+        } while ( (ret!=0) && (cnt++ < 3) );
+        
+        
+        // printf("ret = %d\n",ret);
+        if(ret == 0 && ( ((typ&4)>>2)==1) )
         {
             sprintf(str,"SPN_%d : %s\n",read_active_sim(),tmp);
             ret = strlen(str);
@@ -664,6 +687,11 @@ uint32_t pack_func_init(Pack_func_ *pack_func, uint32_t *sz)
 
     //18
     pack_func[i].f_pack = pack_mdm_sltSts;
+    sz[i] = pack_func[i].sz = 25;
+    i+=1;
+
+    //20
+    pack_func[i].f_pack = pack_mdm_rstIntrvl;
     sz[i] = pack_func[i].sz = 25;
     i+=1;
 
@@ -1150,15 +1178,16 @@ int pkt_btup(char *str, const uint32_t sz, \
         }
         
     } while ((ret != 1) && (cnt++ < max_smRtry));
+    
     cnt = 0;
     ret = 0;
-
     slt[0] = mdm_get_sltSts();
+    dbg_print(NULL,"\nslot[0] = %d\n",slt[0]);
     memset(str,0,sz);
     sprintf(str,"\n<PKT_Bootup>\n");
     for(int i=0;i<sz_packFn;i++)
     {
-        ret = pack_fun[i].f_pack(fd,tmp_str,300,PACK_TYP_BTUP | 4);
+        ret = pack_fun[i].f_pack(fd,tmp_str,300,(PACK_TYP_BTUP));
         if(ret < 0)
         {
             dbg_print(Bold_Red,"Error in fun(%d)\n",i);
@@ -1187,13 +1216,14 @@ int pkt_btup(char *str, const uint32_t sz, \
     ret = 0;
     cnt = 0;
     slt[1] = mdm_get_sltSts();
+    printf("\nslot[1] = %d\n",slt[1]);
     for(int i=0;i<sz_packFn;i++)
     {
         if(sim_sel == -1)
-            ret = pack_fun[i].f_pack(fd,tmp_str,300,PACK_TYP_SIM | 4);
+            ret = pack_fun[i].f_pack(fd,tmp_str,400,PACK_TYP_SIM); // Do not fill the values
         else
         {
-            ret = pack_fun[i].f_pack(fd,tmp_str,300,PACK_TYP_SIM );
+            ret = pack_fun[i].f_pack(fd,tmp_str,400,PACK_TYP_SIM | 4); // FIll the values
         }
         
         if(ret < 0)
@@ -1257,4 +1287,38 @@ int pkt_prd(char *str, const uint32_t sz_str, \
     strcat(str,Tstr);
     close(fd);
     return (strlen(str));
+}
+
+/***********************************************
+ * Pack type : Periodic {0/2}
+ * Arguments : 
+ *  fd : not required
+ *  sz : min (25) 
+ * Return : {-1:0}
+ * ********************************************/
+int pack_mdm_rstIntrvl(int fd, char *str, uint32_t sz, uint32_t typ)
+{
+    int ret;
+    char tmp[50] = {0};
+    memset(str,0,sz);
+    if( ( (typ&3)==0) || ((typ&3)==2) )
+    {
+        if(sz < 25)
+        {
+            return -1;
+        }
+        memset(str,0,sz);
+        ret = mdm_get_rstIntrvl(tmp,45);
+        if(ret == 0)
+        {
+            sprintf(str,"RST_TIME : %s\n",tmp);
+            ret = strlen(str);
+        }
+    }
+    else
+    {
+        ret = 0;
+    }
+    // printf("--Returned from pack_get_rstIntrvl()---\n");
+    return ret;
 }

@@ -29,6 +29,8 @@ typedef struct UPTM_INFO__
     char tm_up[25];
     char tm_dif[20];    
     uint32_t day;
+    uint32_t idiff_hr;
+    uint32_t idiff_mn;
 }UPTM_INFO_;
 
 
@@ -70,6 +72,8 @@ int read_meminfo(MEM_INFO_ *memdata);
 int get_sys_uptm(UPTM_INFO_ *UPTM);
 void get_formated_time(char *str, uint8_t frmt);
 int get_ping_sts(void);
+
+void wait_upto_uptm(uint32_t tm_max);
 
 
 #endif

@@ -1,13 +1,16 @@
 #ifndef MDM_PAYLOAD__H
 #define MDM_PAYLOAD__H
 
-#define PACK_TYP_BTUP   1 | 4
+#define PACK_TYP_BTUP   (1 | 4)
 
  // Recreate the bootup packet
 #define PACK_TYP_BTUP2  4
-#define PACK_TYP_PRD   2 | 4
+#define PACK_TYP_PRD   (2 | 4)
 #define PACK_TYP_ALL    0
 #define PACK_TYP_SIM    3
+
+#define SZ_PAK_FUN  22
+#define PLD_PRD_INT 30 //In seconds
 
 
 typedef struct Pack_func__
@@ -18,7 +21,7 @@ typedef struct Pack_func__
 
 typedef struct st_pkFunc__
 {
-    Pack_func_ Spack_fun[20];
+    Pack_func_ Spack_fun[SZ_PAK_FUN];
     uint32_t sz_btup;
     uint32_t sz_prd;
 }st_pkFunc_;
@@ -126,5 +129,7 @@ int pkt_btup(char *str, const uint32_t sz, \
 
 int pkt_prd(char *str, const uint32_t sz_str, \
          Pack_func_ *pack_fun, const uint32_t sz_packFn);
+
+int pack_mdm_rstIntrvl(int fd, char *str, uint32_t sz, uint32_t typ);
 
 #endif

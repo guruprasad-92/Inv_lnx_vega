@@ -1,5 +1,5 @@
-# Project VEGA of the Invendis Technology in Linux platform
-The goal of this project is to intefrate a router to an IOT device having Embedded linux OS.
+# Project VEGA of the InvD Technology in Linux platform
+The goal of this project is to interface a router to an IOT device having Embedded linux OS.
 The router and the IOT device communaicate over TCP/IP.
 The communication includes, Sending health check report of the router to the IOT device through the port 41 and also to recieves pre-defined commands from the IOT device through the port 40.
 

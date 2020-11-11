@@ -14,21 +14,37 @@
 
 int read_active_sim(void)
 {
-    char sim_pth[35] = {0};
-    char str[2]= {0};
-    int ret;
-    int fd = -1;
-    sprintf(sim_pth,"/reap/etc/config/ActiveSIMStatus");
+    char sim_pth[] = {"/reap/etc/config/ActiveSIMStatus"};
+    char gpio_pth[] = {"/sys/class/gpio/gpio22/value"};
+    char str[2]= {0}, str2[2] = {0};
+    int ret, ret2;
+    int fd = -1, fd2;
+    // sprintf(sim_pth,"/reap/etc/config/ActiveSIMStatus");
     fd = open(sim_pth,O_RDONLY);
-    
+    fd2 = open(gpio_pth,O_RDONLY);
+    if( (fd<0) && (fd2<0) )
+    {
+        dbg_print(Bold_Red,\
+            "ERR : open() failed in read_active_sim() due to : %s\n",\
+            strerror(errno));
+    }
     ret = read(fd,str,1);
-    if(ret <= 0)
+    ret2 = read(fd2,str2,1);
+    if( (ret < 0) || (ret2 < 0) )
     {
         close(fd);
+        close(fd2);
         return -1;
     }
     ret = atoi(str);
+    ret2 = atoi(str2);
+    ret2 += 1;
     close(fd);
+    close(fd2);
+    // if(ret != ret2)
+    // {
+    //     ret = -1;
+    // }
     return ret;
 }
 
@@ -83,7 +99,7 @@ int mdm_selSim(uint32_t sim, uint32_t *tm_tkn)
             {
                 printf("Time taken to switch = %d\n",sts);
             }
-            fclose(fp_snd);
+            pclose(fp_snd);
             ret = Asim;
             *tm_tkn = sts;
         }
@@ -146,6 +162,8 @@ int mdm_init(Termios *tty)
         close(ttyFD);
         return -1;
     }
+    write(ttyFD,RTR_TTY_SET,sizeof(RTR_TTY_SET));
+    msleep(50);
     return ttyFD;
 }
 
@@ -205,13 +223,13 @@ int mdm_get_model(int fd, char *mdl)
         do
         {
             tm += 1;
-            rt_rdwr = read(fd,rd_str,40);
-            msleep(100);
+            rt_rdwr = read(fd,rd_str,50);
             if( strstr(rd_str,"OK\r\n") )
             {
                 sts = 1;
                 break;
             }
+            msleep(100);
         } while( tm<=10 );
         if(sts == 1)
         {
@@ -329,8 +347,8 @@ int mdm_get_sn(int fd, char *sn)
                 printf("strlen(rd_str) = %d\n",strlen(rd_str));
                 break;
             }
-            memset(rd_str,0,700);            
-        } while ((tm++) <= 10);
+            // memset(rd_str,0,700);            
+        } while ((tm++) <= 6);
         if(sts == 1)
         {
             char *lns[15] = {0};
@@ -342,7 +360,7 @@ int mdm_get_sn(int fd, char *sn)
                 if(strstr(lns[i],"GSN"))
                 {
                     i += 1;
-                    rmv_nlcr(sn);
+                    rmv_nlcr(lns[i]);
                     break;
                 }
                 else if(is_numeric(lns[i])>0)
@@ -358,6 +376,7 @@ int mdm_get_sn(int fd, char *sn)
                 // {
                 //     printf("l%d : %s\n",i,lns[i]);
                 // }
+                rmv_nlcr(lns[i]);
                 strcpy(sn,lns[i]);                
                 ret = 0;
             }
@@ -630,7 +649,7 @@ int mdm_get_pcTmp(int fd, char *pcTmp)
                 break;
             }
             
-        } while ((tm++) <= 10);
+        } while ((tm++) < 10);
         if(sts == 1)
         {
             char *lns[5] = {0};
@@ -700,41 +719,48 @@ int mdm_get_imsi(int fd, char *imsi)
                 break;
             }
             
-        } while ((tm++) <= 20);
+        } while ((tm++) < 10);
         if(sts == 1)
         {
             char *lns[5] = {0};
             sts = split_line(rd_str,lns,5);
-            int i=0;
+            int i=0,ii=0;
+            char *numstr[2] = {0};
             for(i=0;i<sts;i++)
             {
-                if(strstr(lns[i],"CIMI"))
+                ii = str2numstr(lns[i],numstr,1,0);
+                if(ii == 1)
                 {
-                    sts = 1;
-                    i+=1;
+                    // sts = 1;
+                    // i+=1;
+                    puts(lns[i]);
+                    if(strlen(numstr[0])>5)
                     break;
                 }
             }
-            if(sts == 1)
+            if(ii == 1)
             {
                 memset(imsi,0,strlen(imsi));
                 // for(int i=0;i<sts;i++)
                 // {
                 //     printf("l%d : %s\n",i,lns[i]);
                 // }
-                strcpy(imsi,lns[1]);
+                // char *numstr[2] = {0};
+                // sts = str2numstr(lns[i],numstr,1,0);
+                strcpy(imsi,numstr[0]);
                 rmv_nlcr(imsi);
                 ret = 0;
             }
             else
             {
-                printf("\nERR-GET_IMSI : line(2) of modem response does not have imsi info\n");
+                dbg_print(Bold_Red,
+                    "\nERR-GET_IMSI : modem response does not have imsi info\n");
                 ret = -1;
             }            
         }
         else
         {
-            printf("\n-----error in mdm_get_imsi()-----\n");
+            printf("\nERR-GET_IMSI : Error from modem.\n");
             ret = -1;
         }
     }
@@ -770,7 +796,7 @@ int mdm_get_spn(int fd, char *spn)
                 }
             }
             msleep(100);            
-        } while ((tm++) <= 10);
+        } while ((tm++) < 10);
         if(sts == 1)
         {
             char *lns[5] = {0};
@@ -893,6 +919,7 @@ int mdm_get_ccid(int fd, char *ccid)
         if(sts == 1)
         {
             char *lns[5] = {0};
+            char *tmp = NULL;
             sts = split_line(rd_str,lns,5);
             if(sts > 2)
             {
@@ -901,9 +928,14 @@ int mdm_get_ccid(int fd, char *ccid)
                 // {
                 //     printf("l%d : %s\n",i,lns[i]);
                 // }
+                for(int i=0;i<sts;i++)
+                {
+                    rmv_nlcr(lns[i]);
+                    tmp = strstr(lns[i],": ");
+                    if(tmp)
+                        break;
+                }
                 
-                rmv_nlcr(lns[1]);
-                char *tmp = strstr(lns[1],": ");
                 if(tmp != NULL)
                 {
                     strcpy(ccid,tmp+2);
@@ -916,13 +948,15 @@ int mdm_get_ccid(int fd, char *ccid)
             }
             else
             {
-                printf("\nERR-GET_CCID : line(2) of modem response does not have ccid info\n");
+                dbg_print(Bold_Red,\
+                    "\nERR-GET_CCID : modem response does not have ccid info\n");
                 ret = -1;
             }            
         }
         else
         {
-            printf("\n-----error in mdm_get_ccid()-----\n");
+            dbg_print(Bold_Red,\
+                "\n-----mdm_get_ccid() :: modem response : error-----\n");
             ret = -1;
         }
     }
@@ -951,6 +985,7 @@ int rsp_popen(const char *cmd, char *rsp, \
     {
         dbg_print(Bold_Red,"\n\rpopen() failed due to : %s\n",strerror(errno));
         dbg_print(Bold_Red,"\nExiting ... .. .\n\r");
+        pclose(fp);
         return -1;
     }
     else
@@ -1086,7 +1121,11 @@ int get_fmw_ver(int fd, FMW_VER_ *ver)
     fs = popen("app version RelCellularManagerApp", "r");
     if(fs == NULL)
     {
-        ret = -1;
+        pclose(fs);
+        dbg_print(Bold_Red,"Error : popen() failed in get_fmw_ver() due to : %s\n",\
+                strerror(errno));
+        dbg_print(Bold_Red,"Exiting(get_fmw_ver())... .. .\n");        
+        return -1;
     }
     ret = fread(str,1,50,fs);
     if(ret > 0)
@@ -1107,13 +1146,13 @@ int get_fmw_ver(int fd, FMW_VER_ *ver)
         }
         else
         {
-            fclose(fs);
+            pclose(fs);
             printf("ERR : Could not get 'Relysis FMW_VER\n");
             printf("Exiting... .. .\n");
             return -1;
         }        
     }
-    fclose(fs);
+    pclose(fs);
     close(fp);
     return ret;
 }
@@ -1135,6 +1174,7 @@ int mdm_get_sltSts(void)
         sz_str = 0;
         for(int i=0;i<ret;i++)
         {
+            printf("\nIn mdm_get_sltSts() : %s\n",lns[i]);
             if( strstr(lns[i],"LE_SIM_READY") \
                 || strstr(lns[i],"LE_SIM_INSERTED") )
             {
@@ -1148,4 +1188,71 @@ int mdm_get_sltSts(void)
         sz_str = 0;
     }
     return sz_str;    
+}
+
+
+int mdm_get_rstIntrvl(char *rst_intrvl,uint32_t sz_rst_intrvl)
+{
+    int fp = 0,ret = 0,line = 0,i = 0,len = 0,j = 0;
+    char *numstr[10]={0};
+    char str[650]={0};
+    char *dest[22]={0};
+    int num[6] = {0};
+    char *p1 = NULL;
+
+    if(sz_rst_intrvl < 25)
+    {
+        dbg_print(Bold_Red,"Err in mdm_get_rstIntrvl(). minimum size = 25\n");
+        dbg_print(Bold_Red,"Returning... .. .\n");
+        return -1;
+    }
+
+    memset(rst_intrvl,0,sz_rst_intrvl);
+
+    fp = open("/etc/crontab", O_RDONLY);
+    if (fp < 0) 
+    { 
+        dbg_print(Bold_Red,"open() failed due to : %s\n",strerror(errno));
+        dbg_print(Bold_Red,"Exiting\n");
+        close(fp);
+        return -1; 
+    } 
+    ret = read(fp,(void *)str, 600);
+    if (ret < 0) 
+    { 
+        printf("read() failed due to : %s\n",strerror(errno));
+        close(fp);
+        return -1; 
+    } 
+    //printf("%s\n",str);
+    line = split_line(str,dest,20);
+    if (line > 0)
+    {
+        for(i=0;i<line;i++)
+        {
+            p1 = strstr(dest[i],"MaintenanceReboot");
+            if(p1 != NULL)
+            {
+                len = str2numstr(dest[i],numstr,5,1);
+                for(j=0; j<len; j++)
+                {
+                    num[j] = atoi(numstr[j]);
+                }
+                sprintf(rst_intrvl,"%02d-%02d %02d:%02d",num[2],num[3],num[1],num[0]);
+                // printf("RST_TIME = %s\n",rst_intrvl);
+                ret = 0;
+                break;
+            }
+            else if(p1 == NULL)
+            {
+                ret = -1;
+            }
+        }
+    }
+    else
+    {
+        ret = -1;
+    }
+    // printf("----Returning---from mdm_get_rstIntrvl()---\n");
+    return ret;
 }

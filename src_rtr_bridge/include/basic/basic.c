@@ -85,7 +85,7 @@ void dbg_print(const char *clr, const char *format, ...)
             puts(clr);
         puts(buf);
         if(clr != NULL)
-            printf(Reset);        
+            printf(Reset);
         va_end(args);
     #endif
 }
@@ -305,19 +305,19 @@ int get_sys_uptime(char *up_tm)
     fs_rsp = popen(cmd,"r");
     if(fs_rsp == NULL)
     {
-        perror("popen() failed due to :");
+        dbg_print(Bold_Red,\
+            "popen() failed due to : %s\n",strerror(errno));
         ret = -1;
     }
     else
     {
         memset(cmd,0,strlen(cmd));
         printf("cmd : %s\n",cmd);
-        ret = fread((void*)cmd,70,70,fs_rsp);
+        ret = fread((void*)cmd,1,70,fs_rsp);
         printf("cmd : %s\n",cmd);
         printf("fread() = %d\n",ret);
         if(ret > 0)
-        {
-            
+        {            
             char *num[6] = {0};
             ret = str2numstr(cmd,num,6,0);
             printf("ret = %d\n",ret);
@@ -330,8 +330,7 @@ int get_sys_uptime(char *up_tm)
             }
         }
     }
-
-    fclose(fs_rsp);
+    pclose(fs_rsp);
     return ret;
 }
 
@@ -351,7 +350,12 @@ int get_eth_info(ETH_INFO_ *ETH_INFO)
         fd[i] = open(f_eth[i],O_RDONLY);
         if(fd[i] < 0)
         {
-            printf("fd[%d] failed due to : %s\n",i,strerror(errno));
+            printf("open(fd[%d]) failed due to : %s\n",i,strerror(errno));
+            printf("Returning... .. .\n");
+            for(int i=0;i<3;i++)
+            {
+                close(fd[i]);
+            }
             return -1;
         }
     }
@@ -362,6 +366,11 @@ int get_eth_info(ETH_INFO_ *ETH_INFO)
         if(ret <= 0)
         {
             printf("read(fd[%d]) failed due to : %s\n",i,strerror(errno));
+            printf("Returning... .. .\n");
+            for(int i=0;i<3;i++)
+            {
+                close(fd[i]);
+            }
             return -1;
         }
         // printf("str[%d] = %s\n\n",i,str[i]);
@@ -383,11 +392,16 @@ int get_eth_info(ETH_INFO_ *ETH_INFO)
 
     memset(f_eth[0],0,strlen(f_eth[0]));
     sprintf(f_eth[0],"/reap/etc/config/Mode"); // To read the IP for ecm0
+    for(int i=0;i<3;i++)
+    {
+        close(fd[i]);
+    }
     fd[0] = open(f_eth[0],O_RDONLY);
     if(fd[0] < 0)
     {
         printf("open(%s) failed due to : %s\n",f_eth[0],strerror(errno));
         printf("Exiting ... .. .\n");
+        close(fd[0]);
         return -1;
     }
     else
@@ -412,6 +426,7 @@ int get_eth_info(ETH_INFO_ *ETH_INFO)
         }
     }
     // printf("ECM0 = %s\n",ETH_INFO[0].ecm);
+    close(fd[0]);
     return ret;
 }
 
@@ -505,32 +520,43 @@ int get_sys_uptm(UPTM_INFO_ *UPTM)
             // printf("uptime =%s\n",str);
             char *num_str[3] = {0};
             ret = str2numstr(str,num_str,3,0);
-            if(ret <= 0)
-            {
-                printf("Could not get digits from the cmd (uptime -p).\n");
-                printf("exiting... .. .\n");
-                fclose(fd_pop2);
-                fclose(fd_pop);
-                return -1;
-            }
+            // if(ret <= 0)
+            // {
+            //     printf("Could not get digits from the cmd (uptime -p).\n");
+            //     printf("exiting... .. .\n");
+            //     fclose(fd_pop2);
+            //     fclose(fd_pop);
+            //     return -1;
+            // }
             switch(ret)
             {
+                case 0:
+                {
+                    UPTM->day = 0;
+                    sprintf(UPTM->tm_dif,"00:00");
+                    UPTM->idiff_mn = 0;
+                }break;
                 case 1:
                 {
                     UPTM->day = 0;
                     sprintf(UPTM->tm_dif,"00:%s",num_str[0]);
+                    UPTM->idiff_mn = atoi(num_str[0]);
                 }
                 break;
                 case 2:
                 {
                     UPTM->day = 0;
                     sprintf(UPTM->tm_dif,"%s:%s",num_str[0],num_str[1]);
+                    UPTM->idiff_hr = atoi(num_str[0]);
+                    UPTM->idiff_mn = atoi(num_str[1]);
                 }
                 break;
                 case 3:
                 {
                     UPTM->day = atoi(num_str[0]);
                     sprintf(UPTM->tm_dif,"%s:%s",num_str[1],num_str[2]);
+                    UPTM->idiff_hr = atoi(num_str[1]);
+                    UPTM->idiff_mn = atoi(num_str[2]);
                 }
                 break;
             }
@@ -557,6 +583,7 @@ void get_formated_time(char *str, uint8_t frmt)
     time(&rw_tm);
     localtime_r(&rw_tm, &tm_info);
     tm_info.tm_year += 1900;
+    tm_info.tm_mon += 1;
     if(frmt == 1)
     {
         sprintf(str,"D-%02d/%02d/%04d T-%02d:%02d:%02d", \
@@ -653,6 +680,24 @@ int get_ping_sts(void)
 }
 
 
-
+void wait_upto_uptm(uint32_t tm_max)
+{
+    UPTM_INFO_ sUPTM = {0};
+    uint32_t cnt = 0;
+    uint32_t tm_max_sec = tm_max*60;
+    do
+    {
+        get_sys_uptm(&sUPTM);
+        if( (sUPTM.idiff_mn >= tm_max ) || (sUPTM.idiff_hr > 0 ) )
+        {
+            break;
+        }
+        cnt += 5;
+        dbg_print(NULL,"Waiting for system uptime : %d Min\n",tm_max);
+        dbg_print(NULL,"Current uptime = %02d:%02d\n",sUPTM.idiff_hr, sUPTM.idiff_mn);
+        sleep(5);
+    }while (cnt <= tm_max_sec);
+    dbg_print(NULL,"System uptime = %02d:%02d \n",sUPTM.idiff_hr,sUPTM.idiff_mn);
+}
 
 

@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <termio.h>
+#include <termios.h>
 #include <string.h>
 
 #include "operation/mdm_operation.h"
@@ -17,6 +17,12 @@ int main(void)
     printf("Enter sim number to select : ");
     scanf("%d",&a);
     uint32_t tm_tkn = 0;
+    struct termios tos;
+    int fd = mdm_init(&tos);
+    char str[40] = {0};
+    mdm_get_imsi(fd,str);
+    printf("IMSI : %s\n",str);
+    /*
     if(a==1 || a==2)
     {
         int ret = mdm_selSim(a,&tm_tkn);
@@ -31,6 +37,7 @@ int main(void)
         }
         
     }
+    */
 
 
 }

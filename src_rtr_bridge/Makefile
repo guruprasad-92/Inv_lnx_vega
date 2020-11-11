@@ -4,6 +4,7 @@
 SHELL := /bin/bash
 ARCH :=
 T_BS := rtr_bridge
+# T_BS := sim_sel
 ifeq (${ARCH},arm)
 $(info ARCH=${ARCH})
 CC := arm-linux-gnueabi-gcc

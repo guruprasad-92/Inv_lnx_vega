@@ -32,8 +32,6 @@ static char p2_Tbuf[SZ_TBF]={0};
 
 int main()
 {
-    time_t Tm;
-    time(&Tm);
     //printf("Enter the cmd : ");
     char str[50]={0};
     uint8_t rt = 0;
@@ -49,11 +47,16 @@ int main()
     th2_arg.port = P2_41;
     th2_arg.pr_sts = NULL;
     th2_arg.th_buf = p2_Tbuf;
-    dbg_print(Bold_Yellow,"---------------------wellocme-----------------------\n");
+    dbg_print(Bold_Yellow,"---------------------Invendis_Router-----------------------\n");
     dbg_print(Bold_Yellow,"FMW_VER = %s\n",APP_VER);
-    dbg_print(Bold_Yellow,"Building date : %s\n",ctime(&Tm));
+    dbg_print(Bold_Yellow,"Building date : %s__%s\n",__DATE__, __TIME__);
     dbg_print(Bold_Yellow,"Invendis Technologies, Bengaluru\n");
-    dbg_print(Bold_Yellow,"----------------------------------------------------\n");
+    dbg_print(Bold_Yellow,"-----------------------------------------------------------\n");
+
+    dbg_print(Bold_Green,"\nWaiting for system uptime upto 3mins\n\n");
+
+    wait_upto_uptm(3);
+
     sprintf(th2_arg.th_info,"THD-2");
 
     th_arg[0].port = P1_40;
