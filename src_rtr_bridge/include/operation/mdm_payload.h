@@ -10,7 +10,7 @@
 #define PACK_TYP_SIM    3
 
 #define SZ_PAK_FUN  22
-#define PLD_PRD_INT 30 //In seconds
+#define PLD_PRD_INT 15 //In seconds
 
 
 typedef struct Pack_func__
@@ -125,7 +125,8 @@ int pack_mdm_rat(int fd, char *str, uint32_t sz, uint32_t typ);
 int pack_mdm_sltSts(int fd, char *str, uint32_t sz_str, uint32_t typ);
 
 int pkt_btup(char *str, const uint32_t sz, \
-         Pack_func_ *pack_fun, const uint32_t sz_packFn);
+         Pack_func_ *pack_fun, const uint32_t sz_packFn, \
+         stMSQ_DS_ *spMsq_DS);
 
 int pkt_prd(char *str, const uint32_t sz_str, \
          Pack_func_ *pack_fun, const uint32_t sz_packFn);

@@ -317,8 +317,8 @@ int get_sys_uptm(UPTM_INFO_ *UPTM)
             }
         }
     }
-    fclose(fd_pop);
-    fclose(fd_pop2);
+    pclose(fd_pop);
+    pclose(fd_pop2);
     return ret;
 }
 
@@ -528,7 +528,7 @@ int mdm_selSim(uint32_t sim)
                 sleep(1);
             } while ( (Asim!=sim) && (sts++ <= Dtm) );
             printf("Time taken to switch = %d\n",sts);
-            fclose(fp_snd);
+            pclose(fp_snd);
             ret = Asim;
         }
     }
@@ -595,6 +595,7 @@ char* pop_ping(uint32_t cnt)
             rt = (char*)NULL;
         }
     }
+    pclose(fp_snd);
     return rt;
 }
 
@@ -693,7 +694,7 @@ int get_sys_uptime(char *up_tm)
         }
     }
 
-    fclose(fs_rsp);
+    pclose(fs_rsp);
     return ret;
 }
 

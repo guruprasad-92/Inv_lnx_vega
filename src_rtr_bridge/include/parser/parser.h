@@ -7,6 +7,7 @@
 #include "cmd_sim/cmd_sim.h"
 #include "cmd_sms/cmd_sms.h"
 #include "cmd_sts/cmd_sts.h"
+#include "cmd_upg/cmd_upg.h"
 
 
 
@@ -17,6 +18,7 @@ typedef struct CMD_ALL__
     CMD_RST_ *CMD_RST;
     CMD_SIM_ *CMD_SIM;
     CMD_STS_ *CMD_STS;
+    CMD_UPG_ *CMD_UPG;
 }CMD_ALL_;
 
 

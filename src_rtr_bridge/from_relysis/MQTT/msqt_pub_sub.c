@@ -40,6 +40,7 @@ int main (void)
     mosquitto_subscribe_callback_set(m_pMqtt, subscribe_callback);
     mosquitto_message_callback_set(m_pMqtt, message_callback);
 
+    printf("All callbacks completed\n");
     /* connect to the broker */
     rc = mosquitto_connect(m_pMqtt, BROKER, PORT, KEEPALIVE); 
     if (rc != MOSQ_ERR_SUCCESS)
@@ -49,6 +50,7 @@ int main (void)
         exit(1);
     }
     
+    printf("connect() completed\n");
     /* ask the library to start a thread for us to service the connection */
     rc = mosquitto_loop_start(m_pMqtt);
     if (rc != MOSQ_ERR_SUCCESS)
@@ -57,6 +59,8 @@ int main (void)
         cleanUp(m_pMqtt);
         exit(1);
     }
+
+    printf("loop completed\n");
  
     /* At this point we are connected to the broker and the network
     * thread is running so we can subscribe and publish as we please.
@@ -73,9 +77,11 @@ int main (void)
         cleanUp(m_pMqtt);
         exit(1);
     }
-    
+
+    printf("sleep() before subscribe(testtopic)\n");
     sleep(1);
 
+    printf("Publish 'hello' to : testtopic\n");
     /* publish a message */
     rc = mosquitto_publish(m_pMqtt, NULL, "testtopic", 6, "hello", 0, false);
     if (rc != MOSQ_ERR_SUCCESS)
@@ -85,7 +91,9 @@ int main (void)
         exit(1);
     }
 
+    printf("sleep() before publish(testtopic)\n");
     sleep(1);
+    printf("Publish '12345' to : testtopic\n");
     
     /* publish another message */
     rc = mosquitto_publish(m_pMqtt, NULL, "testtopic", 6, "12345", 0, false);

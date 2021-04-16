@@ -6,9 +6,21 @@
 #include <time.h>
 #include <sys/time.h>
 #include <stdlib.h>
+#include <semaphore.h>
 
 #define DBG_PRINT
-#define APP_VER "1.0.0.1"
+// #define APP_VER "1.0.0.0"
+#define KLG_NM  "RTR-BRZ"
+#define DBG_VAR_SZ  2048
+
+typedef struct sDBG_LVL__
+{
+    uint8_t iDbg_lvl;
+    char caDbg_lvl[DBG_VAR_SZ];
+    sem_t sm_lock;
+}sDBG_LVL_;
+
+extern sDBG_LVL_ sDBG_LVL;
 
 typedef struct MEM_INFO__ 
 
@@ -61,6 +73,7 @@ void dbg_print(const char *clr, \
 void msleep(const unsigned int mili);
 void cln_NL_CR(char *str);
 void rmv_nlcr(char *str);
+// int cnt_chr_instr(char *str, const char tok);
 int str2numstr(char *str, char *numstr[], int len, uint32_t flt);
 void get_time(char *str);
 void sys_reboot(void);
@@ -74,6 +87,7 @@ void get_formated_time(char *str, uint8_t frmt);
 int get_ping_sts(void);
 
 void wait_upto_uptm(uint32_t tm_max);
+int wr_klog(char *str);
 
 
 #endif

@@ -20,9 +20,14 @@ int main(void)
     struct termios tos;
     int fd = mdm_init(&tos);
     char str[40] = {0};
-    mdm_get_imsi(fd,str);
-    printf("IMSI : %s\n",str);
-    /*
+    #ifdef TST_MCRO
+        printf("\nTST_MCRO defined\n");
+    #else
+        printf("\nTST_MCRO has not defined\n");
+    #endif
+    // mdm_get_imsi(fd,str);
+    // printf("IMSI : %s\n",str);
+    
     if(a==1 || a==2)
     {
         int ret = mdm_selSim(a,&tm_tkn);
@@ -37,7 +42,4 @@ int main(void)
         }
         
     }
-    */
-
-
 }

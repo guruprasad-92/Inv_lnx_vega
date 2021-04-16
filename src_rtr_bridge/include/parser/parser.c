@@ -76,8 +76,8 @@ uint8_t cmd_verify_tok(const char *str)
             
             if(tmp1!=NULL)
             {
-                if(tmp1 == tmp2) 
-                {
+                // if(tmp1 == tmp2) 
+                // {
                     p2 = (long int)tmp1;
                     //printf("p1:0x%lx\np2:0x%lx\n",p1,p2);
                     // printf("p2-p1 = %ld\n",p2-p1);
@@ -90,11 +90,11 @@ uint8_t cmd_verify_tok(const char *str)
                     {
                         printf("ERR : idx error for token(%c)\n",tok[i]);
                     }
-                }
-                else
-                {
-                    printf("ERR : string has multiple token - %c\n",tok[i]);
-                }
+                // }
+                // else
+                // {
+                //     printf("ERR : string has multiple token - %c\n",tok[i]);
+                // }
                 
             }
             else
@@ -109,7 +109,7 @@ uint8_t cmd_verify_tok(const char *str)
         if(strlen(tmp1))
         {
             sz = strlen(tmp1);
-            printf("Arguments = %s\n",tmp1);
+            // printf("Arguments = %s\n",tmp1);
             //printf("Argument size = %d\n",sz);
             if( (sz > 1 ) && (sz < CMD_SZ_MAX) )
             {
@@ -179,10 +179,10 @@ uint8_t cmd_split(char *str, CMD_ *CMD)
             tmp = strtok(NULL,",");
             if(tmp)
             {
-                printf("i=%d\n",i);
+                // printf("i=%d\n",i);
                 if(i < ARG2_MAX )
                 {
-                    printf("ii=%d\n",i);
+                    // printf("ii=%d\n",i);
                     CMD->arg_2[i++] = tmp;
 
                     if( (i==2) && (!strcmp(CMD->arg_1[1],"SMS")) \
@@ -329,6 +329,27 @@ uint8_t cmd_parse(char *str, CMD_ALL_ *CMD_ALL)
                     ret = 0;
                 }
             }
+
+            else if(strcmp(CMD_ALL->CMD->arg_1[1],C_UPG) == 0)
+            {
+                if(cmd_verify_upg(CMD_ALL->CMD,\
+                    CMD_ALL->CMD_UPG))
+                {
+                    dbg_print(Bold_Yellow,"DBG-UPG : Command UPG has been validated.\n");
+                    printf("Printing the cmd upg : \n");
+                    cmd_upg_print(CMD_ALL->CMD_UPG);
+                    // cmd_upg_clean(CMD_ALL->CMD_UPG);
+                    ret = EN_UPG;
+                }
+                else
+                {
+                    cmd_upg_clean(CMD_ALL->CMD_UPG);
+                    dbg_print(Bold_Red,\
+                    "ERR-CMD : Invalid CMD format(UPG).\n\r");
+                    ret = 0;
+                }
+            }
+
             else
             {
                 dbg_print(Bold_Red,
@@ -360,4 +381,5 @@ void cmd_clean_all(CMD_ALL_ *CMD_ALL)
     memset(CMD_ALL->CMD_STS,0,sizeof(*CMD_ALL->CMD_STS));
     memset(CMD_ALL->CMD_SIM,0,sizeof(*CMD_ALL->CMD_SIM));
     memset(CMD_ALL->CMD_SMS,0,sizeof(*CMD_ALL->CMD_SMS));
+    memset(CMD_ALL->CMD_UPG,0,sizeof(*CMD_ALL->CMD_UPG));
 }

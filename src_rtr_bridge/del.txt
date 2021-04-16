@@ -1,0 +1,91 @@
+root@Invendis:~# ifconfig 
+br0       Link encap:Ethernet  HWaddr 72:65:6C:00:02:49  
+          inet addr:10.1.1.105  Bcast:10.1.1.255  Mask:255.255.255.0
+          inet6 addr: fe80::7065:6cff:fe00:249/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:330 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:658 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:26993 (26.3 KiB)  TX bytes:159802 (156.0 KiB)
+
+ecm0      Link encap:Ethernet  HWaddr 72:BA:7B:99:4C:1C  
+          inet addr:192.168.2.2  Bcast:192.168.2.255  Mask:255.255.255.0
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+
+eth0      Link encap:Ethernet  HWaddr 72:65:6C:00:02:49  
+          inet addr:10.1.1.103  Bcast:10.1.1.255  Mask:255.255.255.0
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+
+eth1      Link encap:Ethernet  HWaddr 72:65:6C:00:03:42  
+          inet addr:192.168.3.2  Bcast:192.168.3.255  Mask:255.255.255.0
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+
+eth2      Link encap:Ethernet  HWaddr 72:65:6C:00:03:AA  
+          inet addr:10.1.1.104  Bcast:10.1.1.255  Mask:255.255.255.0
+          inet6 addr: fe80::7065:6cff:fe00:3aa/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:330 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:675 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:27011 (26.3 KiB)  TX bytes:173068 (169.0 KiB)
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:644 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:644 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:49158 (48.0 KiB)  TX bytes:49158 (48.0 KiB)
+
+rmnet0    Link encap:UNSPEC  HWaddr 00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00  
+          UP RUNNING  MTU:2000  Metric:1
+          RX packets:54 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:65 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:17480 (17.0 KiB)  TX bytes:16696 (16.3 KiB)
+
+rmnet_data0 Link encap:UNSPEC  HWaddr 00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00  
+          inet addr:10.117.137.57  Mask:255.255.255.252
+          inet6 addr: fe80::5d46:55d3:1f2e:ed34/64 Scope:Link
+          UP RUNNING  MTU:1500  Metric:1
+          RX packets:54 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:65 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:16943 (16.5 KiB)  TX bytes:16696 (16.3 KiB)
+
+
+A function "int mdm_get_netSts_withIP(void)" has to be designed accroding to the
+following psudo code. 
+
+PSUDO CODE : 
+1.  get and store the response of the command "ifconfig"
+2.  If (response has the string "rmnet_data0" )
+    then :
+        From the succeding lines of "rmnet_data0", 
+        identify the string "inet addr:"
+        If success : 
+            extract the list of IPs.
+            if : 
+                IP[0] exists and matching whith the net-mask IP[1]
+                return (1)
+                <Success>
+            else :
+                return (0) <error>
+        else :
+            return (0) <error>
+    else :
+        return (0) <error>
+    

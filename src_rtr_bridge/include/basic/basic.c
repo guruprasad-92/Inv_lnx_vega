@@ -12,8 +12,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "ring_buffer.h"
 
-
+sDBG_LVL_ sDBG_LVL;
 
 /***************************
  * verify wheather the
@@ -76,11 +77,23 @@ int is_numeric(char *str)
  * ************************/
 void dbg_print(const char *clr, const char *format, ...)
 {
-    #ifdef DBG_PRINT
-        char buf[2048]={0};
-        va_list args;
-        va_start(args,format);
-        vsprintf(buf,format,args);    
+    char buf[DBG_VAR_SZ]={0};
+    va_list args;
+    va_start(args,format);
+    vsprintf(buf,format,args);
+
+    #ifdef DBG_LVL
+        sDBG_LVL.iDbg_lvl = 1;
+        memset(sDBG_LVL.caDbg_lvl,0,strlen(sDBG_LVL.caDbg_lvl));
+        if(clr != NULL)
+            sprintf(sDBG_LVL.caDbg_lvl,"%s%s",clr,buf);
+        else
+        {
+            sprintf(sDBG_LVL.caDbg_lvl,"%s",buf);
+        }
+    #endif    
+
+    #ifdef DBG_PRINT        
         if(clr != NULL)
             puts(clr);
         puts(buf);
@@ -202,6 +215,23 @@ int split_line(char *src, char *dst[], int ln_max)
     return cnt;
 }
 
+
+int cnt_chr_inStr(const char *str, const char tok)
+{
+    int ret = 0;
+    int sz = strlen(str);
+    // printf("sz_numstr = %d\n",sz);
+    for(int i=0;i<sz;i++)
+    {
+        if(str[i] == tok)
+        {
+            ret += 1;
+        }
+    }
+    return ret;
+}
+
+
 /***************************************************
  * For flt : 0
  *      get the integers only
@@ -277,14 +307,7 @@ int str2numstr(char *str, char *numstr[], int len, u_int32_t flt)
               dot = 0;
             }
         }
-        // printf("i-j=%d; j=%d\n",i-j,j);
-
-        // if(brk)
-        // {
-        //     break;
-        // }
     }
-    // printf("C value: %d\n",c);
     return c;
 }
 
@@ -501,8 +524,8 @@ int get_sys_uptm(UPTM_INFO_ *UPTM)
     {
         printf("popen(fd_pop2) failed due to : %s\n",strerror(errno));
         printf("exiting....\n");
-        fclose(fd_pop2);
-        fclose(fd_pop);
+        pclose(fd_pop2);
+        pclose(fd_pop);
         return -1;
     }
 
@@ -571,8 +594,8 @@ int get_sys_uptm(UPTM_INFO_ *UPTM)
             }
         }
     }
-    fclose(fd_pop);
-    fclose(fd_pop2);
+    pclose(fd_pop);
+    pclose(fd_pop2);
     return ret;
 }
 
@@ -615,8 +638,8 @@ void get_formated_time(char *str, uint8_t frmt)
 int get_ping_sts(void)
 {
     FILE *fp_snd;
-    int ret = 0, ping_no=2;
-    char buf[512];
+    int ret = 0, ping_no=2, r = 0;
+    char buf[512] = {0};
     char cmd[25]={0};
     sprintf(cmd,"ping -w %d 8.8.8.8",ping_no);
     // printf("cmd : %s\n",cmd);
@@ -625,7 +648,7 @@ int get_ping_sts(void)
     if(fp_snd == NULL)
     {
         dbg_print(Bold_Red,"popen() failed due to : %s\n",strerror(errno));
-        fclose(fp_snd);
+        pclose(fp_snd);
         return -1;
     }
     else
@@ -635,15 +658,16 @@ int get_ping_sts(void)
         // printf("fread() = %d\n",ret);
         if(ret > 0)
         {
-            char *lns[10];
+            char *lns[10] = {0};
             ret = split_line(buf,lns, 10);
             if(ret > 0)
             {
-                for(int i=0;i<ret;i++)
+                r = ret;
+                for(int i=0;i<r;i++)
                 {
                     if(strstr(lns[i],"packet loss"))
                     {
-                        char *numstr[3];
+                        char *numstr[3] = {0};
                         ret = str2numstr(lns[i],numstr,2,0);
                         if(ret >= 2)
                         {
@@ -663,7 +687,12 @@ int get_ping_sts(void)
                             ret = 0;
                         }
                     }
-                }
+                    else
+                    {
+                        ret = 0;
+                    }
+                    
+                }// for()
             }
             else
             {
@@ -675,7 +704,7 @@ int get_ping_sts(void)
             ret = -1;
         }
     }
-    fclose(fp_snd);
+    pclose(fp_snd);
     return ret;
 }
 
@@ -694,10 +723,26 @@ void wait_upto_uptm(uint32_t tm_max)
         }
         cnt += 5;
         dbg_print(NULL,"Waiting for system uptime : %d Min\n",tm_max);
-        dbg_print(NULL,"Current uptime = %02d:%02d\n",sUPTM.idiff_hr, sUPTM.idiff_mn);
+        dbg_print(NULL,"Current uptime = %02d:%02d:00\n",sUPTM.idiff_hr, sUPTM.idiff_mn);
         sleep(5);
     }while (cnt <= tm_max_sec);
-    dbg_print(NULL,"System uptime = %02d:%02d \n",sUPTM.idiff_hr,sUPTM.idiff_mn);
+    dbg_print(NULL,"System uptime = %02d:%02d:00 \n",sUPTM.idiff_hr,sUPTM.idiff_mn);
 }
 
-
+int wr_klog(char *str)
+{
+    int ret = 0;
+    int fd ;
+    fd = open("/dev/kmsg",O_WRONLY | O_APPEND);
+    if(fd < 0)
+    {
+        dbg_print(Bold_Red,"Unable to open /dev/kmsg due to : %s\n",strerror(errno));
+        dbg_print(Bold_Red,"Returning... .. .\n");
+        close(fd);
+        return -1;
+    }
+    ret = write(fd,str,strlen(str));
+    // memset(str,0,strlen(str));
+    close(fd);
+    return ret;
+}

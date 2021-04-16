@@ -9,6 +9,8 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include "mqtt.h"
+
  #define TMP_BASIC 1
 
 #ifdef TMP_BASIC
@@ -31,7 +33,7 @@
 int pack_mdm_sn(int fd, char *str, uint32_t sz, uint32_t typ)
 {
     int ret = 0, cnt = 0;;
-    char tmp[20] = {0};
+    char tmp[30] = {0};
     if(sz < 25)
     {
         return -1;
@@ -437,15 +439,15 @@ int pack_mdm_netSts(int fd, char *str, uint32_t sz, uint32_t typ)
             return -1;
         }
         memset(str,0,sz);
-        ret = mdm_get_netSts(); // We need to rewrite the definetion.
+        ret = mdm_get_netSts_withIP(); // We need to rewrite the definetion.
         if((ret == 0) || (ret == 1))
         {
-            sprintf(str,"NET_STS(%d) : %d\n",read_active_sim(),ret);
+            sprintf(str,"NET_STS(%d) : %d\n",read_active_simVal()+1,ret);
             ret = strlen(str);
         }
         else
         {
-            sprintf(str,"NET_STS(%d) : %d\n",read_active_sim(),-1);
+            sprintf(str,"NET_STS(%d) : %d\n",read_active_simVal()+1,-1);
             ret = -1;
         }
     }
@@ -502,7 +504,7 @@ int pack_mdm_pngSts(int fd, char *str, uint32_t sz, uint32_t typ)
 int pack_rtr_fmwv(int fd, char *str, uint32_t sz, uint32_t typ)
 {
     int ret = 0;
-    FMW_VER_ f_ver;
+    FMW_VER_ f_ver = {0};
     memset(str,0,sz);
     if(((typ&3)==0) || ((typ&3)==1))
     {
@@ -528,7 +530,6 @@ int pack_rtr_fmwv(int fd, char *str, uint32_t sz, uint32_t typ)
     {
         ret = 0;
     }
-        
     return ret;
 }
 
@@ -587,7 +588,7 @@ int pack_mdm_sltSts(int fd, char *str, uint32_t sz_str, uint32_t typ)
             return -1;
         }
         memset(str,0,sz_str);
-        ret = mdm_get_sltSts();
+        ret = mdm_get_Slt_Sts(fd);
         sprintf(str,"ACTV_SLT_STS : %d\n",ret);
     }
     else
@@ -740,6 +741,7 @@ int mdm_pld_btup(char *pld, char *pld2, uint32_t sz_max, char *dlm)
     if(fd > 0)
     {
         char str[200]={0};
+        printf("del-bug\n");
         sts = mdm_get_sn(fd,str);
         if(sts == 0)
         {
@@ -986,7 +988,6 @@ int pack_sys_uptime(int fd, char *str, uint32_t sz, uint32_t typ)
     {
         ret = 0;
     }
-    
     return ret;
 }
 
@@ -1146,7 +1147,8 @@ int pack_sim_slot(int fd, char *str, uint32_t sz, uint32_t typ)
 }
 
 int pkt_btup(char *str, const uint32_t sz, \
-         Pack_func_ *pack_fun, const uint32_t sz_packFn)
+         Pack_func_ *pack_fun, const uint32_t sz_packFn, \
+         stMSQ_DS_ *spMsq_DS)
 {
     uint32_t BTP_SLT_STS = -1;
     int slt[2] = {0};
@@ -1170,7 +1172,8 @@ int pkt_btup(char *str, const uint32_t sz, \
     cnt = 0;
     do
     {
-        ret = mdm_selSim(1,&tm_tkn);
+        // ret = mdm_selSim(1,&tm_tkn);
+        ret = mdm_selSim_ndt(spMsq_DS,1);
         if(ret != 1)
         {
             msleep(100);
@@ -1181,12 +1184,14 @@ int pkt_btup(char *str, const uint32_t sz, \
     
     cnt = 0;
     ret = 0;
-    slt[0] = mdm_get_sltSts();
+    // slt[0]= mdm_get_sltSts();
+    slt[0] = mdm_get_Slt_Sts(fd);
     dbg_print(NULL,"\nslot[0] = %d\n",slt[0]);
     memset(str,0,sz);
     sprintf(str,"\n<PKT_Bootup>\n");
     for(int i=0;i<sz_packFn;i++)
     {
+        memset(tmp_str,0,strlen(tmp_str));
         ret = pack_fun[i].f_pack(fd,tmp_str,300,(PACK_TYP_BTUP));
         if(ret < 0)
         {
@@ -1197,7 +1202,8 @@ int pkt_btup(char *str, const uint32_t sz, \
     cnt = 0;
     do
     {
-        ret = mdm_selSim(2,&tm_tkn);
+        // ret = mdm_selSim(2,&tm_tkn);
+        ret = mdm_selSim_ndt(spMsq_DS,2);
         if(ret != 2)
         {
             msleep(100);
@@ -1215,10 +1221,12 @@ int pkt_btup(char *str, const uint32_t sz, \
     }
     ret = 0;
     cnt = 0;
-    slt[1] = mdm_get_sltSts();
+    // slt[1] = mdm_get_sltSts();
+    slt[1] = mdm_get_Slt_Sts(fd);
     printf("\nslot[1] = %d\n",slt[1]);
     for(int i=0;i<sz_packFn;i++)
     {
+        memset(tmp_str,0,strlen(tmp_str));
         if(sim_sel == -1)
             ret = pack_fun[i].f_pack(fd,tmp_str,400,PACK_TYP_SIM); // Do not fill the values
         else
@@ -1242,7 +1250,8 @@ int pkt_btup(char *str, const uint32_t sz, \
     cnt = 0;
     do
     {
-        ret = mdm_selSim(1,&tm_tkn);
+        ret = mdm_selSim(1,&tm_tkn); // Required to switch the along with data.
+        // ret = mdm_selSim_ndt(spMsq_DS,1);
         if(ret != 1)
         {
             msleep(100);

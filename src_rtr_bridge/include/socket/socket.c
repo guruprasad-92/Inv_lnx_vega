@@ -28,72 +28,6 @@
 static char p1_Tbuf[SZ_TBF]={0};
 static char p2_Tbuf[SZ_TBF]={0};
 
-
-/*
-int main(void)
-{
-    sem_t   sem[2] = {0};
-    int ret = 0;
-
-    pthread_t th_id[2] = {0};    
-    void *sts;
-    TH_ARG_ th_arg[2];
-    th_arg[0].port = P1_40;
-    th_arg[1].port = P2_41;
-
-    memset(th_arg[0].th_info,0,5);
-    memset(th_arg[1].th_info,0,5);
-
-    sprintf(th_arg[0].th_info,"%s","THD-1");
-    sprintf(th_arg[1].th_info,"%s","THD-2");
-
-    dbg_print(Yellow,"Wellcome = %d\n",5);
-    dbg_print(Bold_Yellow,"Wellcome = %d\n",ret);
-    dbg_print(NULL,"HI\n");
-
-    for(int i=0;i<2;i++)
-    {
-        ret = sem_init(&sem[i],0,1);
-        if(ret < 0)
-        {
-            dbg_print(Bold_Red,"ERR : sem_init(%d) failed due to : %s\n",i,\
-                        strerror(errno));            
-            dbg_print(Bold_Red,"ERR-SEM-init : Exiting ... ..\n\r");
-            return 0;
-        }
-        dbg_print(Cyan,"DBG-SEM : semaphore-%d created\n",i);
-    }
-    
-    ret = pthread_create(&th_id[0],NULL,&th_port1,(void*)&th_arg[0]);
-    if(ret < 0)
-    {
-        dbg_print(Bold_Red,\
-        "ERR-TH1 : pthread_create(1) failed due to : %s\n\r",strerror(errno));
-        dbg_print(Bold_Red,"Exiting... .. .\n\r");
-        exit(EXIT_FAILURE);
-    }
-    ret = pthread_create(&th_id[1],NULL,&th_port1,(void*)&th_arg[1]);
-    if(ret < 0)
-    {
-        dbg_print(Bold_Red,\
-        "ERR-TH1 : pthread_create(1) failed due to : %s\n\r",strerror(errno));
-        dbg_print(Bold_Red,"Exiting... .. .\n\r");
-        exit(EXIT_FAILURE);
-    }
-    ret = pthread_join(th_id[0],&sts);
-    ret = pthread_join(th_id[1],&sts);
-    if(ret)
-    {
-        dbg_print(Bold_Red,\
-        "TH1-ERR : pthread_join(1) failed due to : %s\n\r",
-        strerror(errno));
-        dbg_print(Bold_Red,"Exiting ... .. .\n\r");
-        exit(EXIT_FAILURE);
-    }
-    //while(1);
-}
-*/
-
 //------------------------------------------------------------------
 
 /****************************************
@@ -276,6 +210,7 @@ void *th_port1(void *arg)
     int cnt = 5;
     int sts = start_srvr(&fd_srvr,&fd_clnt,&addr,ln_addr,th_arg->port);
     char cmd_cpy[4] = {0};
+    char cTmp_str_upg[SZ_MQTT_MSG] = {0};
     if(sts < 0)
     {
         dbg_print(Bold_Red,"%s_ERR : start_srvr() failed. \n\r",th_arg->th_info);
@@ -379,6 +314,30 @@ void *th_port1(void *arg)
                             }
                             cmd_sim_clean(th_arg->CMD_ALL->CMD_SIM); // Otherwise th_buf may corrupt
                         }
+                        else if(ret == EN_UPG)
+                        {
+                            printf("CMD_UPG->cln_sts = %d\n",th_arg->CMD_ALL->CMD_UPG->cln_sts);
+                            if(th_arg->CMD_ALL->CMD_UPG->cln_sts == 0)
+                            {
+                                memset(cTmp_str_upg,0,strlen(cTmp_str_upg));
+                                dbg_print(Bold_Green,"DBG-UPG : sem_wait\n");
+                                sem_wait(th_arg->th_sem);
+                                ret = cmd_op_UPG(th_arg->CMD_ALL->CMD_UPG,th_arg->stMSQ_DS,cTmp_str_upg,SZ_MQTT_MSG);
+                                sem_post(th_arg->th_sem);
+                                dbg_print(Bold_Green,"DBG-UPG : sem_post\n");
+                                if(cTmp_str_upg != NULL)
+                                {
+                                    sprintf(th_arg->th_buf,"SRVR(%s) : %s\n",cmd_cpy,cTmp_str_upg);
+                                }
+                                else
+                                {
+                                    sprintf(th_arg->th_buf,"SRVR(%s) : No response\n",cmd_cpy);
+                                }
+                                cmd_ex_sts = 1;
+                            }
+                            cmd_upg_clean(th_arg->CMD_ALL->CMD_UPG);
+                            
+                        }
                         else
                         {
                             cmd_ex_sts = -1;
@@ -395,10 +354,21 @@ void *th_port1(void *arg)
                     else
                     {   
                         memset(cmd_cpy,0,strlen(cmd_cpy));
-                        sprintf(cmd_cpy,"%s",th_arg->CMD_ALL->CMD->arg_1[1]);
-                        memset(th_arg->th_buf,0,SZ_TBF);
-                        sprintf(th_arg->th_buf,\
-                        "SRVR : CMD(%s) is invalid.\n\r",cmd_cpy);
+                        if(th_arg->CMD_ALL->CMD->arg_1[1])
+                        {
+                            sprintf(cmd_cpy,"%s",th_arg->CMD_ALL->CMD->arg_1[1]);
+                            memset(th_arg->th_buf,0,SZ_TBF);
+                            sprintf(th_arg->th_buf,\
+                            "SRVR : CMD(%s) is invalid.\n\r",cmd_cpy);
+                        }
+                        else
+                        {
+                            memcpy(cmd_cpy,"<NULL>",sizeof("<NULL>"));
+                            memset(th_arg->th_buf,0,SZ_TBF);
+                            sprintf(th_arg->th_buf,\
+                            "SRVR : CMD(%s) is invalid.\n\r",cmd_cpy);
+                        }
+                        
                     }
 
                     rt_snd = send(fd_clnt,th_arg->th_buf,
@@ -475,7 +445,7 @@ void *th_port2(void *arg)
 
     dbg_print(Bold_Yellow,"%s : waiting for sem_mdm ...\n",th_arg->th_info);
     sem_wait(th_arg->th_sem);
-    rt_pkt = pkt_btup(buf_btp,1000,Pack_func,rt_pkFun);
+    rt_pkt = pkt_btup(buf_btp,1000,Pack_func,rt_pkFun,th_arg->stMSQ_DS);
     if(rt_pkt == -1) // Success / error
     {
         btup_typ = PACK_TYP_BTUP2;
@@ -533,7 +503,7 @@ void *th_port2(void *arg)
                     sem_wait(th_arg->th_sem);
 
                     memset(buf_btp,0,1000);
-                    rt_pkt = pkt_btup(buf_btp,1000,Pack_func,rt_pkFun);                
+                    rt_pkt = pkt_btup(buf_btp,1000,Pack_func,rt_pkFun,th_arg->stMSQ_DS);                
 
                     sem_post(th_arg->th_sem);
                     dbg_print(Bold_Yellow,"%s : sem_mdm has released.\n",th_arg->th_info);
@@ -615,3 +585,7 @@ void *th_port2(void *arg)
     }
 }
 
+void *th_dbg(void *arg)
+{
+    
+}

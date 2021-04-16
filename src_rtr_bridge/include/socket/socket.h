@@ -2,14 +2,15 @@
 #define SOCKET__H
 
 #include <parser/parser.h>
+#include "mqtt.h"
 
 #define P1_40   40
 #define P2_41   41
 
 #define TM_OUT
 
-#define SZ_TBF  1024
-// #define SZ_BF   500
+#define SZ_TBF  1024*2
+#define SZ_BF   400
 
 typedef struct TH_ARG__
 {
@@ -18,7 +19,9 @@ typedef struct TH_ARG__
     char *th_buf;
     int th_buf_sz;
     sem_t *th_sem;
-    CMD_ALL_ *CMD_ALL;    
+    sem_t *th_semMqtt;
+    CMD_ALL_ *CMD_ALL;  
+    stMSQ_DS_ *stMSQ_DS;
 }TH_ARG_;
 
 typedef struct TH_ARG_P2__
@@ -28,6 +31,8 @@ typedef struct TH_ARG_P2__
     char *th_buf;
     char *pr_sts;
     sem_t *th_sem;
+    sem_t *th_semMqtt;
+    stMSQ_DS_ *stMSQ_DS;
 }TH_ARG_P2_;
 
 

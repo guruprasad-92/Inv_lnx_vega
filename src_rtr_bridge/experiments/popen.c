@@ -225,7 +225,7 @@ int mdm_selSim(int sim)
             printf("\nSelecting SIM%d. Waiting for %dSec.\n",sim,Dtm);
             sleep(Dtm);
             memset(buf,0,1000);
-            fclose(fp_snd);
+            pclose(fp_snd);
             ret = sim;
         }
     }

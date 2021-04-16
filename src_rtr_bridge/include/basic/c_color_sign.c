@@ -52,33 +52,33 @@
 
 //--------------------XXXX---------------------
 
-int main()
-{
-    char a[9] = {0};
-    printf("----------------colors--------------\n");
-    printf(Red"RED\n");
-    printf(Bold_Red"bold red\n");
-    printf(Green"green\n");
-    printf(Bold_Green"Bold green\n");
-    printf(Yellow"yellow\n");
-    printf(Bold_Yellow"Bold yellow\n");
-    printf(Blue"Blue\n");
-    printf(Bold_Blue"Bold blue\n");
-    printf(Magenta"magnenta\n");
-    printf(Bold_Magenta"bold magnenta\n");
-    printf(Cyan"cyan\n");
-    printf(Bold_Cyan"bold cyan\n");
-    printf(Reset"----------- end ------------------\n");
+// int main()
+// {
+//     char a[9] = {0};
+//     printf("----------------colors--------------\n");
+//     printf(Red"RED\n");
+//     printf(Bold_Red"bold red\n");
+//     printf(Green"green\n");
+//     printf(Bold_Green"Bold green\n");
+//     printf(Yellow"yellow\n");
+//     printf(Bold_Yellow"Bold yellow\n");
+//     printf(Blue"Blue\n");
+//     printf(Bold_Blue"Bold blue\n");
+//     printf(Magenta"magnenta\n");
+//     printf(Bold_Magenta"bold magnenta\n");
+//     printf(Cyan"cyan\n");
+//     printf(Bold_Cyan"bold cyan\n");
+//     printf(Reset"----------- end ------------------\n");
 
-    printf("----------------Signs--------------\n");
-    printf("degree celcious : %sC\n",SGN_DEGREE);
-    printf("Greek small alpha : %s\n",SGN_SML_ALPHA);
-    CC_COLOR_BRED;
-    printf("IN red\n\r");
-    CC_COLOR_RST;
-    CC_COLOR_BGREEN;
-    printf("IN B_green\n\r");
-    CC_COLOR_RST;
+//     printf("----------------Signs--------------\n");
+//     printf("degree celcious : %sC\n",SGN_DEGREE);
+//     printf("Greek small alpha : %s\n",SGN_SML_ALPHA);
+//     CC_COLOR_BRED;
+//     printf("IN red\n\r");
+//     CC_COLOR_RST;
+//     CC_COLOR_BGREEN;
+//     printf("IN B_green\n\r");
+//     CC_COLOR_RST;
 
     
-}
+// }

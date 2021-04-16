@@ -8,9 +8,36 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <mosquitto.h>
 
 #include <basic/basic.h>
 #include <operation/mdm_operation.h>
+#include "mqtt.h"
+
+int read_active_simVal(void)
+{
+    char gpio_pth[] = {"/sys/class/gpio/gpio22/value"};
+    int fd2 = open(gpio_pth,O_RDONLY);
+    int ret = 0;
+    char str[2] = {0};
+    if (fd2<0)
+    {
+        dbg_print(Bold_Red,\
+            "ERR : open() failed in read_active_sim() due to : %s\n",\
+            strerror(errno));
+        return -1;
+    }
+    ret = read(fd2,str,1);
+    if( ret < 0 ) 
+    {
+        close(fd2);
+        return -1;
+    }
+    if(strlen(str)>0)
+        ret = atoi(str);
+    close(fd2);
+    return ret;
+}
 
 int read_active_sim(void)
 {
@@ -49,6 +76,106 @@ int read_active_sim(void)
 }
 
 
+int mdm_selSim_ndt(stMSQ_DS_ *spMqtt_ds, uint32_t sim)
+{
+    int ret = 0;
+    int fd,fd2;
+    char caPth[] = {"/sys/class/gpio/gpio22/value"};
+    char sim_pth[] = {"/reap/etc/config/ActiveSIMStatus"};
+    char cVal[2] = {0};
+    int Asim = read_active_simVal();
+    if(Asim < 0)
+    {
+        return Asim;
+    }
+    Asim += 1; // User input is 1 / 2
+    if(Asim == sim)
+    {
+        dbg_print(Bold_Cyan,"\nsim=%d is already active.\n",sim);
+        return Asim;
+    }
+    
+    if( (sim < 1) && (sim > 2) )
+    {
+        dbg_print(Bold_Red,"\nERR : Invalid sim-%d\n",sim);
+        ret = -1;
+    }
+    else
+    {
+        dbg_print(NULL,"Selecting sim-%d\n",sim);
+        fd = open(caPth,O_WRONLY);
+        fd2 = open(sim_pth,O_WRONLY);
+        if(fd < 0 )
+        {
+            dbg_print(Bold_Red,"ERR-mdm_selSim_ndt : open(gpio22) failed due to : %s\n",strerror(errno));
+            dbg_print(Bold_Red,"ERR : Returning from mdm_selSim_ndt()\n");
+            wr_klog("ERR-rtr-brz : mdm_selSim_ndt(), open(gpio22) failed.\n");
+            close(fd);
+            close(fd2);
+            return -1;
+        }
+        if(fd2<0)
+        {
+            dbg_print(Bold_Red,"ERR-mdm_selSim_ndt : open(ActiveSIMStatus) failed due to : %s\n",strerror(errno));
+            dbg_print(Bold_Red,"ERR : Returning from mdm_selSim_ndt()\n");
+            wr_klog("ERR-rtr-brz : mdm_selSim_ndt(), open(ActiveSIMStatus) failed.\n");
+            close(fd);
+            close(fd2);
+            return -1;   
+        }
+        ret = mosquitto_publish(spMqtt_ds->stpMsq_instns, NULL, \
+            TPQ_SIMPWR_RQST,strlen(TPQ_SIMPWR_MSGof),TPQ_SIMPWR_MSGof,1,false);
+        if(ret != MOSQ_ERR_SUCCESS)
+        {
+            mqtt_printErr(ret,"ERR-MQTT : in mdm_selSim_ndt(), mosquitto_publish() failed due to : ");
+            dbg_print(Bold_Red,"ERR : Returning from mdm_selSim_ndt()...\n");
+            close(fd);
+            close(fd2);
+            return -1;
+        }
+        sleep(4);
+        msleep(500);
+        sprintf(cVal,"%d",sim-1);
+        ret = write(fd,cVal,1);
+        if( ret < 0 )
+        {
+            dbg_print(Bold_Red,"ERR-mdm_selSim_ndt : write() failed due to : %s\n",strerror(errno));
+            dbg_print(Bold_Red,"ERR-mdm_selSim_ndt : Returning... .. .\n");
+            close(fd);
+            close(fd2);
+            return -1;
+        }
+
+        sleep(4);
+        ret = mosquitto_publish(spMqtt_ds->stpMsq_instns, NULL, \
+            TPQ_SIMPWR_RQST,strlen(TPQ_SIMPWR_MSGon),TPQ_SIMPWR_MSGon,1,false);
+        if(ret != MOSQ_ERR_SUCCESS)
+        {
+            mqtt_printErr(ret,"ERR-MQTT : in mdm_selSim_ndt(), mosquitto_publish() failed due to : ");
+            dbg_print(Bold_Red,"ERR : Returning from mdm_selSim_ndt()...\n");
+            close(fd);
+            close(fd2);
+            return -1;
+        }
+        sleep(4);
+        memset(cVal,0,2);
+        sprintf(cVal,"%d",sim);
+        ret = write(fd2,cVal,1);
+        if( ret < 0 )
+        {
+            dbg_print(Bold_Red,"ERR-mdm_selSim_ndt : write() failed due to : %s\n",strerror(errno));
+            dbg_print(Bold_Red,"ERR-mdm_selSim_ndt : Returning... .. .\n");
+            close(fd);
+            close(fd2);
+            return -1;
+        }
+        ret = sim;
+        dbg_print(Bold_Yellow,"Time taken to switch sim-%d : %dSec",sim,12);
+    }
+    close(fd);
+    close(fd2);
+    return ret;
+}
 
 int mdm_selSim(uint32_t sim, uint32_t *tm_tkn)
 {
@@ -121,8 +248,16 @@ int mdm_selSim(uint32_t sim, uint32_t *tm_tkn)
 int mdm_init(Termios *tty)
 {
 	memset (tty, 0, sizeof *tty);
-    int ttyFD;
-    ttyFD = open("/dev/ttyAT", O_RDWR | O_NONBLOCK | O_NDELAY );
+    int ttyFD, tm_out=60;
+    do
+    {
+        ttyFD = open("/dev/ttyAT", O_RDWR | O_NONBLOCK | O_NDELAY );
+        if(ttyFD < 0)
+        {
+            sleep(1);
+        }
+    } while ( (ttyFD < 0) && (tm_out-- > 0));
+    
     if(ttyFD < 0 )
     {
         perror("open() failed due to :");
@@ -164,6 +299,9 @@ int mdm_init(Termios *tty)
     }
     write(ttyFD,RTR_TTY_SET,sizeof(RTR_TTY_SET));
     msleep(50);
+    write(ttyFD,RTR_KSREP,sizeof(RTR_KSREP));
+    msleep(100);
+    fd_ctrl(ttyFD,1,tty);
     return ttyFD;
 }
 
@@ -182,11 +320,19 @@ int fd_ctrl(int fd, int ctrl, Termios *tty)
 {
 
     int ret = 0;
+    int i=1;
+    char buf[100] = {0};
     if (ctrl == 1)
     {
         tcflush( fd, TCIOFLUSH);
         tcflow(fd,TCION);
         tcflow(fd,TCOON);
+        do
+        {
+            ret = read(fd,buf,100);
+            msleep(1);
+            dbg_print(NULL,"Cleaning ttyfd(%d); ret = %d\n",i,ret);
+        } while ( (ret > 0) && (i <= 5));
         ret = 1;
     }
     else if(ctrl == 0)
@@ -194,6 +340,18 @@ int fd_ctrl(int fd, int ctrl, Termios *tty)
         tcflow(fd,TCIOFF);
         tcflow(fd,TCOOFF);
         ret = 0;
+    }
+    else if(ctrl == 2)
+    {
+        do
+        {
+            ret = read(fd,buf,100);
+            if(ret >0)
+                msleep(5);
+            // memset(buf,0,strlen(buf));
+        } while ( (ret > 0) && (i++ <= 5));
+        ret = 1;
+        return ret;
     }
     
     if ( tcsetattr (fd, TCSANOW, tty ) != 0)
@@ -214,6 +372,8 @@ int mdm_get_model(int fd, char *mdl)
 {
     char rd_str[700];
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_MDL,strlen(RTR_MDL));
     int sts = 0;
     int ret = 0;
@@ -273,6 +433,8 @@ int mdm_get_mfn(int fd, char *mfn)
 {
     char rd_str[700]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_MFN,strlen(RTR_MFN));
     int sts = 0;
     int ret = 0;
@@ -329,9 +491,12 @@ int mdm_get_sn(int fd, char *sn)
 {
     char rd_str[800]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_SN,strlen(RTR_SN));
     int sts = 0;
     int ret = 0;
+    char *rptr = NULL; 
 
     if (rt_rdwr > 0)
     {
@@ -339,12 +504,9 @@ int mdm_get_sn(int fd, char *sn)
         {
             msleep(100);
             rt_rdwr = read(fd,rd_str+(strlen(rd_str)),100);
-            // printf("strlen(rd_str) = %d\n",strlen(rd_str));
-            // printf("rd_str = %s\n",rd_str);
             if( strstr(rd_str,"OK\r\n"))
             {
                 sts = 1;  
-                printf("strlen(rd_str) = %d\n",strlen(rd_str));
                 break;
             }
             // memset(rd_str,0,700);            
@@ -353,42 +515,41 @@ int mdm_get_sn(int fd, char *sn)
         {
             char *lns[15] = {0};
             int i=0;
-            sts = split_line(rd_str,lns,5);
-            printf("split_line() = %d\n",sts);
-            for(i=0;i<sts;i++)
+            rptr = strstr(rd_str,"AT+GSN");
+            if(rptr)
             {
-                if(strstr(lns[i],"GSN"))
+                sts = split_line(rd_str,lns,5);
+                for(i=0;i<sts;i++)
                 {
-                    i += 1;
+                    if(strstr(lns[i],"GSN"))
+                    {
+                        i += 1;
+                        rmv_nlcr(lns[i]);
+                        break;
+                    }
+                    else if(is_numeric(lns[i])>0)
+                    {
+                        break;
+                    }
+                }
+                
+                if(is_numeric(lns[i])>0)
+                {
+                    memset(sn,0,strlen(sn));
                     rmv_nlcr(lns[i]);
-                    break;
+                    strcpy(sn,lns[i]);                
+                    ret = 0;
                 }
-                else if(is_numeric(lns[i])>0)
+                else
                 {
-                    break;
-                }
-            }
-            
-            if(is_numeric(lns[i])>0)
-            {
-                memset(sn,0,strlen(sn));
-                // for(int i=0;i<sts;i++)
-                // {
-                //     printf("l%d : %s\n",i,lns[i]);
-                // }
-                rmv_nlcr(lns[i]);
-                strcpy(sn,lns[i]);                
-                ret = 0;
-            }
-            else
-            {
-                printf("\nERR-GET_MFN : line(2) of modem response does not have sn info\n");
-                ret = -1;
-            }            
+                    dbg_print(Bold_Red,"\nERR-GET_MFN : line(2) of modem response does not have sn info\n");
+                    ret = -1;
+                }   
+            }         
         }
         else
         {
-            printf("\n-----error in mdm_get_sn()-----\n");
+            dbg_print(Bold_Red,"\n-----error in mdm_get_sn()-----\n");
             ret = -1;
         }
     }
@@ -411,10 +572,13 @@ int mdm_get_fmwv(int fd, char *fmwv)
 {
     char rd_str[700]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_FWV,strlen(RTR_FWV));
     int sts = 0;
     int ret = 0;
 
+    
     if (rt_rdwr > 0)
     {
         do
@@ -430,10 +594,19 @@ int mdm_get_fmwv(int fd, char *fmwv)
             }
             
         } while ((tm++) <= 10);
+
+        char *fnm = {"mdm_get_fmwv"};
+        char del_str[900] = {0};
+        sprintf(del_str,"%s : %s : %s\n",KLG_NM,fnm,rd_str);
+        wr_klog(del_str);
+        memset(del_str,0,strlen(del_str));
+
+
         if(sts == 1)
         {
             char *lns[5] = {0};
             sts = split_line(rd_str,lns,5);
+            wr_klog("RTR-BRZ : mdm_get_fmwv : ");
             if(sts > 0)
             {
                 memset(fmwv,0,strlen(fmwv));
@@ -451,21 +624,28 @@ int mdm_get_fmwv(int fd, char *fmwv)
                     strcpy(fmwv,lns[i1]);
                     rmv_nlcr(fmwv);
                     ret = 0;
+
+                    sprintf(del_str,"DBG-RTR-BRZ : fmwv = %s\n",fmwv);
+                    wr_klog(del_str);
                 }
                 else
                 {
                     ret = -1;
+                    printf("RTR-BRZ : mdm_get_fmwv : Error\n");
+                    wr_klog("RTR-BRZ : mdm_get_fmwv : Error\n");
                 }
             }
             else
             {
                 printf("\nERR-GET_FWV : line(2) of modem response does not have fmwv info\n");
+                wr_klog("ERR-RTR-BRZ : fmwv info is missing in mdm_rsp.\n");
                 ret = -1;
             }            
         }
         else
         {
             printf("\n-----error in mdm_get_fmwv()-----\n");
+            wr_klog("ERR-RTR-BRZ : mdm_get_fmwv() failed.\n");
             ret = -1;
         }
     }
@@ -480,6 +660,8 @@ int mdm_get_csq(int fd, char *csq)
 {
     char rd_str[700]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_CSQ,strlen(RTR_CSQ));
     int sts = 0;
     int ret = 0;
@@ -559,6 +741,8 @@ int mdm_get_paTmp(int fd, char *paTmp)
 {
     char rd_str[700]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_PA_TMP,strlen(RTR_PA_TMP));
     int sts = 0;
     int ret = 0;
@@ -631,6 +815,8 @@ int mdm_get_pcTmp(int fd, char *pcTmp)
 {
     char rd_str[700]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_PC_TMP,strlen(RTR_PC_TMP));
     int sts = 0;
     int ret = 0;
@@ -701,22 +887,28 @@ int mdm_get_imsi(int fd, char *imsi)
 {
     char rd_str[800]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_SIM_IMSI,strlen(RTR_SIM_IMSI));
     int sts = 0;
     int ret = 0;
 
     if (rt_rdwr > 0)
     {
+        memset(rd_str,0,strlen(rd_str));
         do
         {
             msleep(100);
             rt_rdwr = read(fd,rd_str+(strlen(rd_str)),70);
-            if( strstr(rd_str,"OK\r\n") )
+            if(strstr(rd_str,"AT+CIMI"))
             {
-                sts = 1;  
-                // printf("strlen(rd_str) = %d\n",strlen(rd_str));
-                // printf("rd_str : %s\n",rd_str);
-                break;
+                if( strstr(rd_str,"OK\r\n") )
+                {
+                    sts = 1;  
+                    // printf("strlen(rd_str) = %d\n",strlen(rd_str));
+                    // printf("rd_str : %s\n",rd_str);
+                    break;
+                }
             }
             
         } while ((tm++) < 10);
@@ -733,7 +925,7 @@ int mdm_get_imsi(int fd, char *imsi)
                 {
                     // sts = 1;
                     // i+=1;
-                    puts(lns[i]);
+                    // puts(lns[i]);
                     if(strlen(numstr[0])>5)
                     break;
                 }
@@ -776,6 +968,8 @@ int mdm_get_spn(int fd, char *spn)
 {
     char rd_str[700]={0};
     int tm = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_SIM_SPN,strlen(RTR_SIM_SPN));
     int sts = 0;
     int ret = 0;
@@ -855,6 +1049,10 @@ int mdm_rsp(int fd, char *cmd, char *rsp, \
             uint32_t sz_rsp, uint64_t tm_out)
 {
     int ret=0, sts=0, sz=0;
+    int cnt = 30;
+    char *p1=NULL, *p2=NULL;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     if(sz_rsp < 100)
     {
         dbg_print(Bold_Red,"ERR : sz_rsp < 100");
@@ -868,7 +1066,7 @@ int mdm_rsp(int fd, char *cmd, char *rsp, \
     {
         do
         {
-            ret = read(fd,rsp+sz,30);
+            ret = read(fd,rsp+sz,cnt);
             sz = strlen(rsp);
             if( strstr(rsp,"OK\r\n") )
             {
@@ -880,8 +1078,9 @@ int mdm_rsp(int fd, char *cmd, char *rsp, \
                 sts = -1;
             }
             msleep(100);
-        } while ( (tm_out-- > 0) && (sz < sz_rsp) \
-                    && (sts==0) );
+        } while ( (tm_out-- > 0)  && (sz < sz_rsp) && (sz+cnt <= sz_rsp)\
+                   && (sts==0) );
+        //  
     }
     if(sts == 1)
     {
@@ -900,6 +1099,8 @@ int mdm_get_ccid(int fd, char *ccid)
     int tm = 0;
     int sts = 0;
     int ret = 0;
+    fd_ctrl(fd,2,NULL);
+    fd_ctrl(fd,2,NULL);
     int rt_rdwr = write(fd,RTR_SIM_CCID,strlen(RTR_SIM_CCID));
 
     if (rt_rdwr > 0)
@@ -1028,6 +1229,84 @@ int mdm_get_netSts(void)
     return sts;
 }
 
+
+int mdm_get_netSts_withIP(void)
+{
+    FILE *fp = NULL;
+    char str[4096] = {0};
+    char *lns[5] = {0};
+    char *numstr[2] = {0};
+    char *num1[4] = {0};
+    char *num2[4] = {0};
+    int n1[4] = {0};
+    int n2[4] = {0};
+    char *p1 = NULL, *p2 = NULL;
+    int ret = 0,sts = 0,ret1 = 0;
+
+    fp = popen("ifconfig", "r");
+    if(fp == NULL )
+    {
+        printf("popen(fp) failed due to : %s\n",strerror(errno));
+        printf("exiting....\n");
+        ret = -1;
+    }
+    else
+    {
+        ret1 = fread((void*)str,1,4096,fp);
+        if(ret1 > 0)
+        {
+            p1 = strstr(str,"rmnet_data0");
+            if(p1 != NULL)
+            {
+                p2 = strstr(p1,"inet addr:");
+                if(p2 == NULL)
+                {
+                    pclose(fp);
+                    return 0;
+                }
+                sts = split_line(p2,lns,5);
+                if(sts > 0)
+                {  
+                    str2numstr(lns[0],numstr,2,1);
+                    // printf("ip[0] = %s\n",numstr[0]); 
+                    // printf("ip[1] = %s\n",numstr[1]); 
+                    str2numstr(numstr[0],num1,4,0);
+                    str2numstr(numstr[1],num2,4,0);
+                    for(int i = 0; i<4 ;i++)
+                    {
+                        n1[i] = atoi(num1[i]);
+                        n2[i] = atoi(num2[i]);
+                    }
+                    if((n1[0] <= n2[0]) && ( n1[1] <= n2[1]) && (n1[2] <= n2[2]))
+                    {
+                        // printf("success\n");
+                        ret = 1;
+                    }
+                    else
+                    {
+                        // printf("error\n");
+                        ret = 0;
+                    }
+                }
+                else
+                {
+                    ret = 0;
+                }
+            }
+            else
+            {
+                ret = 0;
+            }
+        }
+        else
+        {
+            ret = 0;
+        }
+    }
+    pclose(fp);
+    return ret;
+}
+
 /*********************************
  * Get the current radio access technology of the modem
  * ******************************/
@@ -1077,6 +1356,7 @@ int get_fmw_ver(int fd, FMW_VER_ *ver)
     int fp,ret;
     char str[420]={0};
     char tmp[20] ={0};
+    char cKlog[150] = {0};
     char *p1 = NULL;
     char *p2 = NULL;
     fp = open("/etc/legato/version", O_RDONLY);
@@ -1104,7 +1384,6 @@ int get_fmw_ver(int fd, FMW_VER_ *ver)
     *p2 = 0;
     p2 += 1;
     strcpy(ver->v_fs,p1);
-    
     memset(tmp,0,ret);
     strcpy(tmp,"linux-quic-quic: ");
     ret = strlen(tmp);
@@ -1118,37 +1397,56 @@ int get_fmw_ver(int fd, FMW_VER_ *ver)
 
     FILE *fs;
     memset(str,0,400);
-    fs = popen("app version RelCellularManagerApp", "r");
+    memset(ver->v_app_inv,0,sizeof(ver->v_app_inv));
+    strcpy(ver->v_app_inv,APP_VER);
+
+    ret = mdm_get_fmwv(fd,str);
+    if(ret == 0)
+    {
+        strcpy(ver->v_mdm_fmw,str);
+    }
+    memset(str,0,400);
+
+    fs = popen("/legato/systems/current/bin/app version RelCellularManagerApp", "r");
     if(fs == NULL)
     {
-        pclose(fs);
         dbg_print(Bold_Red,"Error : popen() failed in get_fmw_ver() due to : %s\n",\
                 strerror(errno));
-        dbg_print(Bold_Red,"Exiting(get_fmw_ver())... .. .\n");        
+        sprintf(cKlog,"ERR-RTR-BRZ : popen() failed in get_fmw_ver() due to : %s\n",strerror(errno));
+        wr_klog(cKlog);
+        dbg_print(Bold_Red,"Exiting(get_fmw_ver())... .. .\n");
+        pclose(fs);
         return -1;
     }
-    ret = fread(str,1,50,fs);
+    
+    
+    ret = fread(str,1,100,fs);
+    memset(cKlog,0,150);
+    sprintf(cKlog,"RTR-BRZ : FMWV : popen() = %d\n",ret);
+    wr_klog(cKlog);
     if(ret > 0)
     {
         char *numstr[2];
         ret = str2numstr(str,numstr,1,1);
+        memset(cKlog,0,strlen(cKlog));
+        sprintf(cKlog,"RTR-BRZ : fmwv : str2numstr() = %d\n",ret);
+        wr_klog(cKlog);
         if(ret == 1)
         {
             strcpy(ver->v_app_rls,numstr[0]);
-            strcpy(ver->v_app_inv,APP_VER);
-            
             memset(str,0,200);
-            ret = mdm_get_fmwv(fd,str);
-            if(ret == 0)
-            {
-                strcpy(ver->v_mdm_fmw,str);
-            }
+            ret = 0;
+            // ret = mdm_get_fmwv(fd,str);
+            // if(ret == 0)
+            // {
+            //     strcpy(ver->v_mdm_fmw,str);
+            // }
         }
         else
-        {
-            pclose(fs);
+        {            
             printf("ERR : Could not get 'Relysis FMW_VER\n");
             printf("Exiting... .. .\n");
+            pclose(fs);
             return -1;
         }        
     }
@@ -1174,7 +1472,7 @@ int mdm_get_sltSts(void)
         sz_str = 0;
         for(int i=0;i<ret;i++)
         {
-            printf("\nIn mdm_get_sltSts() : %s\n",lns[i]);
+            printf("\nIn mdm_get_sltSts(%d) : %s\n",read_active_sim(),lns[i]);
             if( strstr(lns[i],"LE_SIM_READY") \
                 || strstr(lns[i],"LE_SIM_INSERTED") )
             {
@@ -1254,5 +1552,83 @@ int mdm_get_rstIntrvl(char *rst_intrvl,uint32_t sz_rst_intrvl)
         ret = -1;
     }
     // printf("----Returning---from mdm_get_rstIntrvl()---\n");
+    close(fp);
+    return ret;
+}
+
+/*****************************
+ * Get the sim availability in the active slot
+ * Return : 
+ *      Success : 1
+ *      Error   : 0
+ * **************************/
+int mdm_get_Slt_Sts(int fd)
+{
+    char str[130] = {0};
+    char *numstr[2] = {0};
+    int ret = 0, num = 0, cnt = 0;
+    char *ptr = NULL, *p1 = NULL;
+
+    do
+    {
+        memset(str,0,strlen(str));
+        ret = mdm_rsp(fd,RTR_QRY_KSREP,str,130,2000);
+        cnt++;
+        p1 = strstr(str,"+KSREP:");
+        // printf("p1 = %s\n",p1);
+        msleep(100);
+    } while ((p1 == NULL) && (cnt < 3));
+
+    if(ret == 0)
+    {
+        ptr = strstr(str,"+KSREP:");
+        if(ptr)
+        {
+            str2numstr(ptr,numstr,2,0);
+            num = atoi(numstr[1]);
+            switch (num)
+            {
+            case RTR_SLT_STS_RDY:
+                ret = 1;
+                dbg_print(Bold_Yellow,"SLT_STS: SLT_STS_RDY\n");
+                break;
+            case RTR_SLT_STS_WAIT:
+                ret = 0;
+                dbg_print(Bold_Yellow,"SLT_STS: SLT_STS_WAIT\n");
+                break;
+            case RTR_SLT_STS_ABSNT:
+                ret = 0;
+                dbg_print(Bold_Yellow,"SLT_STS: SLT_STS_ABSNT\n");
+                break;
+            case RTR_SLT_STS_LKD:
+                ret = 0;
+                dbg_print(Bold_Yellow,"SLT_STS: SLT_STS_LKD\n");
+                break;
+            case RTR_SLT_STS_ERR:
+                ret = 0;
+                dbg_print(Bold_Yellow,"SLT_STS: SLT_STS_ERR\n");
+                break;
+            case RTR_SLT_STS_UNWN:
+                ret = 0;
+                dbg_print(Bold_Yellow,"SLT_STS: SLT_STS_UNWN\n");
+                break;       
+            default:
+                dbg_print(Red,"case didn't match\n");
+                ret = 0;
+                break;
+            }
+        }
+        else
+        {
+            dbg_print(Bold_Red,"ERR-SLTsTS : mdm_get_Slt_Sts() failed.\n");
+            ret = 0;
+        }
+        
+    }
+    else
+    {
+        dbg_print(Bold_Red,"ERR-SLTsTS : mdm_get_Slt_Sts() failed <no rsp from mdm>.\n");
+       ret = 0; 
+    }
     return ret;
 }

@@ -16,6 +16,7 @@
 #include "basic/color.h"
 #include "basic/basic.h"
 #include "socket/socket.h"
+#include "mqtt.h"
 
 static CMD_ALL_ CMD_ALL;
 
@@ -24,10 +25,15 @@ static CMD_SMS_ CMD_SMS;
 static CMD_RST_ CMD_RST;
 static CMD_SIM_ CMD_SIM;
 static CMD_STS_ CMD_STS;
+static CMD_UPG_ CMD_UPG;
 
 static char p1_Tbuf[SZ_TBF]={0};
 static char p2_Tbuf[SZ_TBF]={0};
 
+static stMSQ_calbak_ stMSQ_calbak = {0};
+static stMSQ_Uobj_ stMSQ_Uobj = {0};
+static stMSQ_DS_ stMSQ_DS = {0};
+msq_ins_ *spMsq_instans;
 
 
 int main()
@@ -37,13 +43,14 @@ int main()
     uint8_t rt = 0;
     int split = 0;
 
-    sem_t sem[2] = {0};
+    static sem_t sem[3] = {0};
     int ret = 0, rt_th1,rt_th2;
     pthread_t th_id[2] = {0};
     void *sts;
     TH_ARG_ th_arg[2] = {0};
     TH_ARG_P2_ th2_arg = {0};
 
+    
     th2_arg.port = P2_41;
     th2_arg.pr_sts = NULL;
     th2_arg.th_buf = p2_Tbuf;
@@ -53,9 +60,26 @@ int main()
     dbg_print(Bold_Yellow,"Invendis Technologies, Bengaluru\n");
     dbg_print(Bold_Yellow,"-----------------------------------------------------------\n");
 
-    dbg_print(Bold_Green,"\nWaiting for system uptime upto 3mins\n\n");
+    //------- msq init ------
+    
+    stMSQ_calbak.mqtt_cbk_pub = mqtt_calBak_pub;
+    stMSQ_calbak.mqtt_cbk_sub = mqtt_calBak_sub;
+    stMSQ_calbak.mqtt_cbk_msg = mqtt_calBak_msg;
 
-    wait_upto_uptm(3);
+    stMSQ_DS.spMSQ_Uobj = &stMSQ_Uobj;
+    ret = mqtt_init(&spMsq_instans,&stMSQ_Uobj,&stMSQ_calbak);
+    if(ret < 0)
+    {
+        printf("mqtt_init() failed\n");
+        printf("Returning... .. .\n");
+        return -1;
+    }
+    stMSQ_DS.stpMsq_instns = spMsq_instans;
+    //------xxxxx------
+
+    // dbg_print(Bold_Green,"\nWaiting for system uptime upto 3mins\n\n");
+
+    // wait_upto_uptm(3);
 
     sprintf(th2_arg.th_info,"THD-2");
 
@@ -72,20 +96,24 @@ int main()
     CMD_ALL.CMD_STS = &CMD_STS;
     CMD_ALL.CMD_SIM = &CMD_SIM;
     CMD_ALL.CMD_SMS = &CMD_SMS;
+    CMD_ALL.CMD_UPG = &CMD_UPG;
 
 
     th_arg[0].th_buf = p1_Tbuf;
     th_arg[1].th_buf = p2_Tbuf;
     th_arg[0].th_buf_sz = th_arg[1].th_buf_sz = SZ_TBF;
     th_arg[0].CMD_ALL = &CMD_ALL;
+    th_arg[0].stMSQ_DS = &stMSQ_DS;
+
     th_arg[1].CMD_ALL = NULL;
+
     
     
     dbg_print(Bold_Magenta,"ptr-arg1 = %p\n",CMD.arg_1);
     dbg_print(Bold_Magenta,"ptr-th_buf = %p\n",th_arg[0].th_buf);
 
 
-    for(int i=0;i<2;i++)
+    for(int i=0;i<3;i++)
     {
         ret = sem_init(&sem[i],0,1);
         if(ret < 0)
@@ -99,7 +127,7 @@ int main()
     }
     th_arg[0].th_sem = &sem[0];
     th2_arg.th_sem = &sem[0];
-
+    th2_arg.stMSQ_DS = &stMSQ_DS;
 
     rt_th1 = pthread_create(&th_id[0],NULL,&th_port1,(void*)&th_arg[0]);
     if(rt_th1 < 0)

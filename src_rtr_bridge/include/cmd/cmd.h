@@ -22,10 +22,12 @@
 #define C_STS   "STS"
 #define C_STS_ARG   1 //Fixed Argument
 
+#define C_UPG "UPG"
+
 #define CMD_CNT     4
 #define CMD_SZ_MAX  200
 #define ARG1_MAX    2
-#define ARG2_MAX    4
+#define ARG2_MAX    12
 #define ARG2_MIN    1
 
 typedef enum 
@@ -33,7 +35,8 @@ typedef enum
     EN_SMS = 1,
     EN_SIM,
     EN_STS,
-    EN_RST
+    EN_RST,
+    EN_UPG
 }EN_CMD_PRS;
 
 typedef struct _CMD_
